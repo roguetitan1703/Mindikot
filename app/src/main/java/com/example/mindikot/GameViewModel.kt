@@ -81,9 +81,59 @@ class GameViewModel : ViewModel() {
         }
     }
 
+    fun setupGame(playerName: String, mode: GameMode, host: Boolean = false, playersNeeded: Int = 4) {
+        isHost = host
+        requiredPlayerCount = playersNeeded
+
+        val deck = generateDeck().shuffled()
+        val player = Player(
+            id = 0,
+            name = playerName,
+            teamId = 0,
+            hand = deck.take(5).toMutableList()
+        )
+
+        val teams = listOf(
+            Team(id = 1, players = listOf(player)),
+            Team(id = 2, players = listOf()) // placeholder
+        )
+
+        _state.value = GameState(
+            players = listOf(player),
+            teams = teams,
+            gameMode = mode
+        )
+    }
+
     private fun generateDeck(): List<Card> {
-        return Suit.values().flatMap { suit ->
-            Rank.values().map { rank -> Card(suit, rank) }
+        return Suit.entries.flatMap { suit ->
+            Rank.entries.map { rank -> Card(suit, rank) }
         }
     }
+
+    // Host/Join role
+    var isHost: Boolean = false
+        private set
+
+    // Number of players required for this game
+    var requiredPlayerCount: Int = 4
+        private set
+
+    // Game start trigger
+    private val _gameStarted = MutableStateFlow(false)
+    val gameStarted: StateFlow<Boolean> = _gameStarted
+    fun startGame() {
+        _gameStarted.value = true
+    }
+    fun setPlayerName(name: String) {
+        _state.update { state ->
+            state.copy(
+                players = state.players.mapIndexed { index, player ->
+                    if (index == 0) player.copy(name = name) else player
+                }
+            )
+        }
+    }
+
+
 }
