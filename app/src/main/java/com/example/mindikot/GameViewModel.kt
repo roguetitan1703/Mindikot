@@ -11,6 +11,20 @@ import java.io.InputStreamReader
 import java.net.ServerSocket
 
 class GameViewModel : ViewModel() {
+    private fun logGameState(tag: String = "GameState") {
+        val gameState = _state.value
+        println("[$tag] Players:")
+        gameState.players.forEach { player ->
+            println("  - ${player.name} (ID: ${player.id}, Team: ${player.teamId}, Hand: ${player.hand})")
+        }
+        println("[$tag] Teams:")
+        gameState.teams.forEach { team ->
+            println("  - Team ${team.id}: ${team.players.joinToString { it.name }}")
+        }
+        println("[$tag] Mode: ${gameState.gameMode}")
+        println("[$tag] Trump Suit: ${gameState.trumpSuit ?: "Not chosen"}")
+        println("[$tag] Trump Revealed: ${gameState.trumpRevealed}")
+    }
 
     private val _state = MutableStateFlow(generateInitialGameState())
     val state: StateFlow<GameState> = _state.asStateFlow()
@@ -23,6 +37,7 @@ class GameViewModel : ViewModel() {
 
     var requiredPlayerCount: Int = 4
         private set
+    var me: String = ""
 
     private val _gameStarted = MutableStateFlow(false)
     val gameStarted: StateFlow<Boolean> = _gameStarted
@@ -61,12 +76,12 @@ class GameViewModel : ViewModel() {
             Team(id = 1, players = players.filter { it.teamId == 1 }),
             Team(id = 2, players = players.filter { it.teamId == 2 })
         )
-
         _state.value = GameState(
             players = players,
             teams = teams,
             gameMode = mode
         )
+        logGameState("After setupGame")
     }
 
     // Change a player's team to either 1 or 2, reassign the teams dynamically.
@@ -76,10 +91,8 @@ class GameViewModel : ViewModel() {
         val updatedPlayers = _state.value.players.map { player ->
             if (player.id == playerId) {
                 player.copy(teamId = newTeamId)
-            } else {
-                player
-            }
-        }
+            } else player
+        }.sortedBy { if (it.name == me) Int.MIN_VALUE else it.id }
 
         val team1Players = updatedPlayers.filter { it.teamId == 1 }
         val team2Players = updatedPlayers.filter { it.teamId == 2 }
@@ -107,11 +120,13 @@ class GameViewModel : ViewModel() {
         val newPlayer = Player(
             id = currentPlayers.size,
             name = name,
-            teamId = if (currentPlayers.size % 2 == 0) 1 else 2, // Alternate teams
+            teamId = if (currentPlayers.size % 2 == 0) 1 else 2,
             hand = mutableListOf()
         )
 
-        val updatedPlayers = currentPlayers + newPlayer
+        val updatedPlayers = (currentPlayers + newPlayer)
+            .sortedBy { if (it.name == me) Int.MIN_VALUE else it.id }
+
         val updatedTeams = listOf(
             Team(id = 1, players = updatedPlayers.filter { it.teamId == 1 }),
             Team(id = 2, players = updatedPlayers.filter { it.teamId == 2 })
@@ -182,6 +197,7 @@ class GameViewModel : ViewModel() {
 
     // Set the player's name
     fun setPlayerName(name: String) {
+        me = name
         _state.update { state ->
             state.copy(
                 players = state.players.mapIndexed { index, player ->
