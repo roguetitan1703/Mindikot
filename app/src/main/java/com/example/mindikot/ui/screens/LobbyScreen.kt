@@ -68,6 +68,13 @@ fun LobbyScreen(
                             .show()
                 }
             }
+    // Automatically show the permission prompt if not granted (Android 12+)
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasNetworkPermission) {
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
     // Function to check and request permission
     val checkAndRequestPermission: () -> Boolean = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !hasNetworkPermission) {
@@ -317,7 +324,7 @@ fun GameConfigCard(navController: NavController, viewModel: GameViewModel, hostP
             }
 
             ConfigOptionRow(label = "Game Mode:") {
-                GameMode.values().forEach { mode ->
+                GameMode.entries.forEach { mode ->
                     ConfigButton(
                             text = mode.displayName(),
                             isSelected = gameMode == mode,

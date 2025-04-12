@@ -17,8 +17,7 @@
     <!-- Required for NSD on Android 12 (API 31) and higher -->
     <!-- Needed for scanning nearby WiFi devices which NSD relies on -->
     <!-- Use ACCESS_FINE_LOCATION for more reliable discovery -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="32" /> <!-- Use maxSdkVersion for new split permissions if targeting 33+ -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- For Android 13 (API 33) and higher, use NEARBY_WIFI_DEVICES for NSD -->
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
