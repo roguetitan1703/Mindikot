@@ -1,19 +1,32 @@
 package com.example.mindikot.core.engine
 
-import com.example.mindikot.core.model.Card
-import com.example.mindikot.core.model.Player
-import com.example.mindikot.core.state.GameState
+import com.example.mindikot.core.model.*
 
 object TrickHandler {
-    fun determineTrickWinner(played: List<Pair<Player, Card>>, state: GameState): Player {
-        val trump = state.trumpSuit
-        val trumpPlays = played.filter { it.second.suit == trump }
-        val contenders = if (trump != null && trumpPlays.isNotEmpty()) {
-            trumpPlays
-        } else {
-            val leadSuit = played.first().second.suit
-            played.filter { it.second.suit == leadSuit }
+    /**
+     * Determine trick winner based on lead suit and trump.
+     *
+     * @param playedCards list of (Player to Card) in play order
+     * @param trumpSuit current trump suit (or null)
+     * @return winning Player
+     */
+    fun determineTrickWinner(
+        playedCards: List<Pair<Player, Card>>,
+        trumpSuit: Suit?
+    ): Player {
+        val leadSuit = playedCards.first().second.suit
+
+        // Score each play: trump +100, lead-suit + rank, else 0
+        val scored = playedCards.map { (player, card) ->
+            val score = when {
+                card.suit == trumpSuit -> card.rank.value + 100
+                card.suit == leadSuit -> card.rank.value
+                else -> 0
+            }
+            Triple(player, card, score)
         }
-        return contenders.maxByOrNull { it.second.rank.value }!!.first
+
+        // Highest score wins
+        return scored.maxBy { it.third }.first
     }
 }

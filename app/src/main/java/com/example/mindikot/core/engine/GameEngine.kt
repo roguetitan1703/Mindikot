@@ -1,48 +1,34 @@
 package com.example.mindikot.core.engine
 
-import com.example.mindikot.core.model.Player
-import com.example.mindikot.core.model.Card
-import com.example.mindikot.core.model.Suit
-import com.example.mindikot.core.model.GameMode
-import com.example.mindikot.core.model.Team
+import com.example.mindikot.core.model.*
 import com.example.mindikot.core.state.GameState
 
-class GameEngine(
-    private val players: List<Player>,
-    private val teams: List<Team>,
-    private val gameMode: GameMode
-) {
-    val state = GameState(players, teams, gameMode)
+object GameEngine {
+    /**
+     * Play a single trick, collect cards, and return next leader index.
+     *
+     * @param state current GameState
+     * @param leaderIndex index of player leading this trick
+     * @return index of trick winner
+     */
+    fun playTrick(state: GameState, leaderIndex: Int): Int {
+        val trickPlays = mutableListOf<Pair<Player, Card>>()
+        val players = state.players
+        val trump = state.trumpSuit
 
-    fun startNewRound(includeTwos: Boolean) {
-        players.forEach { it.hand.clear() }
-        teams.forEach { it.capturedCards.clear() }
+        // Each player plays top card
+        for (i in players.indices) {
+            val idx = (leaderIndex + i) % players.size
+            val player = players[idx]
+            val card = player.hand.removeAt(0)
+            trickPlays.add(player to card)
+        }
 
-        val deck = DeckGenerator.generateDeck(includeTwos)
-        DeckGenerator.dealCards(players, deck)
+        // Determine winner and collect cards
+        val winner = TrickHandler.determineTrickWinner(trickPlays, trump)
+        state.teams.first { it.id == winner.teamId }
+            .collectedCards.addAll(trickPlays.map { it.second })
 
-        state.currentLeaderIndex = 0
-        state.trumpSuit = null
-        state.trumpRevealed = false
-        state.hiddenCard = null
-    }
-
-    fun playTrick(played: List<Pair<Player, Card>>): Player {
-        val winner = TrickHandler.determineTrickWinner(played, state)
-        collectTrick(played, winner)
-        return winner
-    }
-
-    private fun collectTrick(played: List<Pair<Player, Card>>, winner: Player) {
-        teams.first { it.id == winner.teamId }.capturedCards.addAll(played.map { it.second })
-        state.currentLeaderIndex = players.indexOf(winner)
-    }
-
-    fun handleTrump(player: Player, chosenSuit: Suit? = null, passDiscard: Card? = null) {
-        TrumpHandler.handleTrumpSelection(state, player, chosenSuit, passDiscard)
-    }
-
-    fun endRound(): RoundResult {
-        return RoundEvaluator.evaluateRound(teams)
+        return players.indexOf(winner)
     }
 }

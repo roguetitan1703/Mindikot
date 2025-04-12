@@ -1,23 +1,19 @@
 package com.example.mindikot.core.engine
 
-import com.example.mindikot.core.model.Rank
-import com.example.mindikot.core.model.Team
-
-data class RoundResult(
-    val winningTeam: Team,
-    val points: Int,
-    val isKot: Boolean
-)
+import com.example.mindikot.core.model.*
 
 object RoundEvaluator {
+    data class RoundResult(val winningTeam: Team, val isKot: Boolean)
+
+    /**
+     * Evaluate end-of-round: if any team has all 4 tens → Kot, else majority of tens.
+     */
     fun evaluateRound(teams: List<Team>): RoundResult {
-        val tensCount = teams.associateWith { team ->
-            team.capturedCards.count { it.rank == Rank.TEN }
-        }
-        val (winningTeam, count) = tensCount.maxByOrNull { it.value }!!
-        val isKot = count == 4
-        val points = 1
-        winningTeam.score += points
-        return RoundResult(winningTeam, points, isKot)
+        // Instant Kot
+        teams.find { it.hasKot() }?.let { return RoundResult(it, true) }
+
+        // Otherwise pick team with most tens
+        val winner = teams.maxBy { it.countTens() }
+        return RoundResult(winner, false)
     }
 }
