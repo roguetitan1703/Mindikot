@@ -7,9 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mindikot.ui.GameViewModel
-import com.example.mindikot.ui.screens.GameScreen
-import com.example.mindikot.ui.screens.LobbyScreen
-import com.example.mindikot.ui.screens.ResultScreen
+import com.example.mindikot.ui.screens.*
 
 @Composable
 fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
@@ -18,12 +16,19 @@ fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier)
             LobbyScreen(navController = navController)
         }
         composable("game") {
-            // Use viewModel() to get an instance of GameViewModel
             val gameViewModel: GameViewModel = viewModel()
             GameScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("result") {
             ResultScreen(navController = navController)
+        }
+        composable("waiting_for_players") {
+            val gameViewModel: GameViewModel = viewModel()
+            WaitingForPlayersScreen(navController = navController, viewModel = gameViewModel)
+        }
+        composable("game_host") {
+            val gameViewModel: GameViewModel = viewModel()
+            GameHostScreen(navController = navController, viewModel = gameViewModel)
         }
     }
 }
