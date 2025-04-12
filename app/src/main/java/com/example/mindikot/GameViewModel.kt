@@ -1,27 +1,89 @@
-package com.example.mindikot
+package com.example.mindikot.ui
 
 import androidx.lifecycle.ViewModel
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewModelScope
 import com.example.mindikot.core.model.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import com.example.mindikot.core.state.GameState
-
 class GameViewModel : ViewModel() {
-    var gameState by mutableStateOf(GameState(players = emptyList(), teams = emptyList(), gameMode = GameMode.CHOOSE_WHEN_EMPTY))
-        private set
 
-    var currentHand by mutableStateOf<List<Card>>(emptyList())
+    private val _state = MutableStateFlow(generateInitialGameState())
+    val state: StateFlow<GameState> = _state.asStateFlow()
 
-    fun playerMakesMove(playerId: Int, card: Card) {
-        currentHand = currentHand.filter { it != card }
+    private val _navigateToResultScreen = MutableSharedFlow<Unit>()
+    val navigateToResultScreen: SharedFlow<Unit> = _navigateToResultScreen.asSharedFlow()
+
+    fun selectTrump(suit: Suit) {
+        _state.update {
+            it.copy(trumpSuit = suit, trumpRevealed = true)
+        }
     }
 
-    fun startNewRound() {
-        // Reset game state and start a new round
+    fun playTrick() {
+        val newPlayers = state.value.players.map { player ->
+            if (player.hand.isNotEmpty()) {
+                player.copy(hand = player.hand.drop(1).toMutableList())
+            } else player
+        }
+
+        val updatedTeams = state.value.teams.map { team ->
+            val cardsGained = (1..2).map {
+                Card(Suit.values().random(), Rank.values().random())
+            }.toMutableList()
+
+            team.copy(collectedCards = (team.collectedCards + cardsGained).toMutableList())
+        }
+
+        _state.update {
+            it.copy(players = newPlayers, teams = updatedTeams)
+        }
+
+        if (newPlayers.all { it.hand.isEmpty() }) {
+            viewModelScope.launch {
+                _navigateToResultScreen.emit(Unit)
+            }
+        }
     }
 
-    fun updateGameState(newState: GameState) {
-        gameState = newState
+    fun restartGame() {
+        _state.value = generateInitialGameState()
+    }
+
+    private fun generateInitialGameState(): GameState {
+        val deck = generateDeck().shuffled()
+        val players = List(4) { index ->
+            val teamId = if (index % 2 == 0) 1 else 2  // Assign teamId based on player position
+            Player(
+                id = index,
+                name = "Player ${index + 1}",
+                teamId = teamId,  // Pass teamId here
+                hand = deck.drop(index * 5).take(5).toMutableList()
+            )
+        }
+
+        val teams = listOf(
+            Team(id = 1, players = listOf(players[0], players[2])),
+            Team(id = 2, players = listOf(players[1], players[3]))
+        )
+
+        return GameState(
+            players = players,
+            teams = teams,
+            gameMode = GameMode.FIRST_CARD_HIDDEN,  // Default game mode
+            trumpSuit = null,
+            trumpRevealed = false
+        )
+    }
+    fun changeGameMode(newMode: GameMode) {
+        _state.update {
+            it.copy(gameMode = newMode)
+        }
+    }
+
+    private fun generateDeck(): List<Card> {
+        return Suit.values().flatMap { suit ->
+            Rank.values().map { rank -> Card(suit, rank) }
+        }
     }
 }

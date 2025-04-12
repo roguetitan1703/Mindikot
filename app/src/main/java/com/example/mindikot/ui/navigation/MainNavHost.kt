@@ -6,7 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.mindikot.GameViewModel
+import com.example.mindikot.ui.GameViewModel
 import com.example.mindikot.ui.screens.GameScreen
 import com.example.mindikot.ui.screens.LobbyScreen
 import com.example.mindikot.ui.screens.ResultScreen
