@@ -17,9 +17,10 @@ fun ResultScreen(
 ) {
     val gameState by viewModel.state.collectAsState()
 
-    val roundResult = remember(gameState.teams) {
-        RoundEvaluator.evaluateRound(gameState.teams)
+    val roundResult = remember(gameState) {
+        RoundEvaluator.evaluateRound(gameState)
     }
+
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -27,7 +28,7 @@ fun ResultScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "🏆 Team ${roundResult.winningTeam.id} wins!",
+            text = roundResult.winningTeam?.let { "🏆 Team ${it.id} wins!" } ?: "No winning team",
             style = MaterialTheme.typography.headlineLarge
         )
 

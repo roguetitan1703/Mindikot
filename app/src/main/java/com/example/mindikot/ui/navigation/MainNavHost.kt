@@ -11,23 +11,22 @@ import com.example.mindikot.ui.screens.*
 
 @Composable
 fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
+    val gameViewModel: GameViewModel = viewModel() // ViewModel created once here
+
     NavHost(navController = navController, startDestination = "lobby", modifier = modifier) {
         composable("lobby") {
-            LobbyScreen(navController = navController)
+            LobbyScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game") {
-            val gameViewModel: GameViewModel = viewModel()
             GameScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("result") {
-            ResultScreen(navController = navController)
+            ResultScreen(navController = navController) // no VM needed here
         }
         composable("waiting_for_players") {
-            val gameViewModel: GameViewModel = viewModel()
             WaitingForPlayersScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game_host") {
-            val gameViewModel: GameViewModel = viewModel()
             GameHostScreen(navController = navController, viewModel = gameViewModel)
         }
     }

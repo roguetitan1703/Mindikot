@@ -17,6 +17,7 @@ class GameViewModel : ViewModel() {
         gameState.players.forEach { player ->
             println("  - ${player.name} (ID: ${player.id}, Team: ${player.teamId}, Hand: ${player.hand})")
         }
+
         println("[$tag] Teams:")
         gameState.teams.forEach { team ->
             println("  - Team ${team.id}: ${team.players.joinToString { it.name }}")
