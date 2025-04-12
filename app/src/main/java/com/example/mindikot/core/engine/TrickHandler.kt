@@ -10,23 +10,20 @@ object TrickHandler {
      * @param trumpSuit current trump suit (or null)
      * @return winning Player
      */
-    fun determineTrickWinner(
-        playedCards: List<Pair<Player, Card>>,
-        trumpSuit: Suit?
-    ): Player {
+    fun determineTrickWinner(playedCards: List<Pair<Player, Card>>, trumpSuit: Suit?): Player {
         val leadSuit = playedCards.first().second.suit
 
-        // Score each play: trump +100, lead-suit + rank, else 0
-        val scored = playedCards.map { (player, card) ->
-            val score = when {
-                card.suit == trumpSuit -> card.rank.value + 100
-                card.suit == leadSuit -> card.rank.value
-                else -> 0
-            }
-            Triple(player, card, score)
-        }
+        val scored =
+                playedCards.map { (player, card) ->
+                    val score =
+                            when {
+                                card.suit == trumpSuit -> card.rank.value + 100
+                                card.suit == leadSuit -> card.rank.value
+                                else -> 0
+                            }
+                    Triple(player, card, score)
+                }
 
-        // Highest score wins
-        return scored.maxBy { it.third }.first
+        return scored.maxByOrNull { it.third }!!.first
     }
 }
