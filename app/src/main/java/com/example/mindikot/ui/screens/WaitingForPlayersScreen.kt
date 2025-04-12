@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -12,38 +13,36 @@ import com.example.mindikot.ui.GameViewModel // Ensure correct import
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
-fun WaitingForPlayersScreen(navController: NavController, viewModel: GameViewModel = viewModel()) {
+fun WaitingForPlayersScreen(
+        navController: NavController,
+        viewModel: GameViewModel =
+                viewModel(
+                        factory =
+                                GameViewModelFactory(
+                                        LocalContext.current.applicationContext
+                                ) // Use factory
+                )
+) {
     val gameState by viewModel.state.collectAsState()
     val connectedCount by viewModel.connectedPlayersCount.collectAsState()
-    val isHost = viewModel.isHost // This should be set correctly when joining/hosting
+    val isHost = viewModel.isHost
     val requiredPlayers = viewModel.requiredPlayerCount
     val gameStarted by viewModel.gameStarted.collectAsState()
     val localPlayerId = viewModel.localPlayerId
 
-    // Effect to handle navigation for JOINER when game starts
+    // Joiner: Navigate when game starts
     LaunchedEffect(gameStarted, isHost) {
         if (!isHost && gameStarted) {
-            // Game started message received from host
-            navController.navigate("game") {
-                // Remove waiting screen from back stack
-                popUpTo("waiting_for_players") { inclusive = true }
-            }
+            navController.navigate("game") { popUpTo("waiting_for_players") { inclusive = true } }
         }
     }
 
-    // Effect to handle disconnection while waiting
+    // Joiner: Handle disconnection while waiting
     LaunchedEffect(Unit) {
-        // Assuming ViewModel state indicates connection status implicitly
-        // If ViewModel had an explicit isConnected StateFlow, observe that.
-        // For now, if we lose state or go back to empty, navigate back.
         viewModel.state.collectLatest { state ->
-            if (!isHost &&
-                            state.players.find { it.id == localPlayerId } == null &&
-                            localPlayerId != -1
-            ) {
-                // If I'm a client, my ID is assigned, but I'm not in the player list anymore,
-                // likely means I got disconnected or host reset.
-                // Navigate back to lobby.
+            // If client and no longer in player list (after initial assignment)
+            if (!isHost && localPlayerId != -1 && state.players.none { it.id == localPlayerId }) {
+                // Might have been kicked or host stopped
                 navController.navigate("lobby") { popUpTo("lobby") { inclusive = true } }
             }
         }
@@ -55,20 +54,21 @@ fun WaitingForPlayersScreen(navController: NavController, viewModel: GameViewMod
             horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Waiting for Players...", style = MaterialTheme.typography.headlineMedium)
-
-        CircularProgressIndicator() // Show progress while waiting
-
+        CircularProgressIndicator()
         Text("Connected Players: $connectedCount / $requiredPlayers")
-
         Spacer(modifier = Modifier.height(16.dp))
 
         Text("Players in Lobby:", style = MaterialTheme.typography.titleMedium)
-        // Show the player names from the GameState received from host
-        Column(horizontalAlignment = Alignment.Start) {
+        Column(horizontalAlignment = Alignment.Start, modifier = Modifier.padding(start = 16.dp)) {
+            // Use players list from GameState
             gameState.players.forEach { player ->
                 val suffix =
-                        if (player.id == localPlayerId) " (You)"
-                        else if (player.id == 0) " (Host)" else ""
+                        when {
+                            player.id == localPlayerId -> " (You)"
+                            player.id == 0 && isHost -> " (Host - You)" // Clarify host
+                            player.id == 0 && !isHost -> " (Host)"
+                            else -> ""
+                        }
                 Text(text = "- ${player.name}$suffix", style = MaterialTheme.typography.bodyLarge)
             }
         }
@@ -76,12 +76,11 @@ fun WaitingForPlayersScreen(navController: NavController, viewModel: GameViewMod
         Spacer(modifier = Modifier.height(32.dp))
 
         if (isHost) {
-            // Host doesn't manually start, it's automatic
+            // Host just waits, game starts automatically
             Text("Waiting for players to join...")
-            // Optionally add a cancel button for the host
             Button(
                     onClick = {
-                        viewModel.stopServer()
+                        viewModel.stopServerAndDiscovery() // Host cancels the game
                         navController.navigate("lobby") { popUpTo("lobby") { inclusive = true } }
                     },
                     colors =
@@ -90,11 +89,11 @@ fun WaitingForPlayersScreen(navController: NavController, viewModel: GameViewMod
                             )
             ) { Text("Cancel Game") }
         } else {
+            // Client waits for host
             Text("Waiting for the host to start the game...")
-            // Optionally add a leave button for the client
             Button(
                     onClick = {
-                        viewModel.disconnectFromServer()
+                        viewModel.disconnectFromServer() // Client leaves
                         navController.navigate("lobby") { popUpTo("lobby") { inclusive = true } }
                     },
                     colors =

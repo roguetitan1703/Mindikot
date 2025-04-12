@@ -70,6 +70,8 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
 
     // --- Networking (Host) ---
     private var serverSocket: ServerSocket? = null
+    private var servicePort: Int = 0 // *** DECLARED servicePort property ***
+        private set
     private var isServerRunning = false
     private val clientSockets = ConcurrentHashMap<Int, Socket>()
     private val clientWriters = ConcurrentHashMap<Int, PrintWriter>()
@@ -87,10 +89,8 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     private var nsdManager: NsdManager? = null
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
-    // private var resolveListener: NsdManager.ResolveListener? = null // Less needed if resolving
-    // inline
     private val SERVICE_TYPE = "_mindikot._tcp"
-    private var serviceName = "MindikotGame" // Base name, will be made unique
+    // private var serviceName = "MindikotGame" // Base name, actual name assigned on registration
     private var nsdServiceNameRegistered: String? = null // Actual name registered
 
     private val _discoveredHosts = MutableStateFlow<List<NsdServiceInfo>>(emptyList())
@@ -109,8 +109,6 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     private fun logError(message: String, error: Throwable? = null) {
         val errorMsg = error?.message?.let { ": $it" } ?: ""
         println("[GameViewModel ERROR] $message$errorMsg")
-        // Optionally log full stack trace for debugging
-        // error?.printStackTrace()
     }
 
     // ========================================================================
@@ -129,7 +127,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         )
         isHost = host
         requiredPlayerCount = playersNeeded
-        localPlayerId = 0 // Host is always Player 0
+        localPlayerId = 0
 
         val players =
                 (0 until playersNeeded).map { i ->
@@ -152,9 +150,8 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         teams = teams,
                         gameMode = mode,
                         tricksWon = mutableMapOf(1 to 0, 2 to 0)
-                        // Other fields default or are null initially
-                        )
-        _connectedPlayersCount.value = 1 // Host is connected
+                )
+        _connectedPlayersCount.value = 1
         log("Initial GameState created for host setup.")
     }
 
@@ -165,7 +162,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             return
         }
         log("Attempting to start server and NSD registration...")
-        isServerRunning = true // Set flag early
+        isServerRunning = true
         viewModelScope.launch(Dispatchers.IO) {
             var serverStarted = false
             var nsdRegistered = false
@@ -173,20 +170,19 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 // 1. Start Server Socket
                 serverSocket = ServerSocket(port)
                 val actualPort = serverSocket!!.localPort
-                servicePort = actualPort // Store the chosen port
+                servicePort = actualPort // *** ASSIGN servicePort here ***
                 log("Server socket started successfully on port $actualPort.")
                 serverStarted = true
 
-                // 2. Get Host IP for display (best effort)
+                // 2. Get Host IP for display
                 val localIp = getLocalIpAddress()
                 withContext(Dispatchers.Main) { _hostIpAddress.value = localIp?.hostAddress }
                 log("Host IP for display: ${localIp?.hostAddress ?: "Not Found"}")
 
-                // 3. Register NSD Service
-                if (registerNsdService(actualPort)) {
+                // 3. Register NSD Service (using the obtained 'actualPort')
+                if (registerNsdService(actualPort)) { // *** PASS actualPort ***
                     nsdRegistered = true
                 } else {
-                    // Registration failed, stop the server socket
                     throw Exception("NSD Registration Failed")
                 }
 
@@ -196,7 +192,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 while (clientSockets.size < requiredPlayerCount - 1 &&
                         isServerRunning &&
                         isActive) {
-                    val socket = serverSocket?.accept() ?: break // Wait for connection
+                    val socket = serverSocket?.accept() ?: break
                     val currentClientCount = clientSockets.size
                     val assignedPlayerId = currentClientCount + 1
 
@@ -210,14 +206,11 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         clientWriters[assignedPlayerId] = writer
                         clientReaders[assignedPlayerId] = reader
 
-                        // Send ID first, then current lobby state
                         sendMessageToClient(
                                 assignedPlayerId,
                                 NetworkMessage(MessageType.ASSIGN_ID, assignedPlayerId)
                         )
-                        // Delay slightly to ensure client processes ID before state? Might not be
-                        // needed.
-                        // delay(50)
+                        // Send current lobby state
                         sendMessageToClient(
                                 assignedPlayerId,
                                 NetworkMessage(MessageType.GAME_STATE_UPDATE, _state.value)
@@ -234,33 +227,27 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
 
                         if (_connectedPlayersCount.value == requiredPlayerCount) {
                             log("All players connected!")
-                            prepareAndBroadcastInitialState() // Deal cards and start game
-                            // Don't break here, let loop finish naturally if isServerRunning
-                            // becomes false
+                            prepareAndBroadcastInitialState()
                         }
                     } catch (e: Exception) {
                         logError("Error during client setup (Player $assignedPlayerId)", e)
-                        runCatching { socket.close() } // Close this specific socket on error
+                        runCatching { socket.close() }
                     }
                 } // End of accept loop
+                log("Stopped accepting connections (lobby full or server stopped).")
             } catch (e: Exception) {
-                if (isServerRunning) { // Only log/show error if not intentionally stopped
+                if (isServerRunning) {
                     logError("Server/NSD start failed or accept loop error", e)
                     withContext(Dispatchers.Main) {
                         _showError.emit("Error starting host: ${e.message}")
                     }
                 }
-                // Cleanup needed if partial start occurred
-                withContext(Dispatchers.Main) { stopServerAndDiscovery() }
+                withContext(Dispatchers.Main) {
+                    stopServerAndDiscovery()
+                } // Ensure cleanup on any error
             } finally {
-                log("Server accept loop finished. isServerRunning=$isServerRunning")
-                // If loop exited but server thought it was running, ensure cleanup
-                if (isServerRunning) {
-                    // This might happen if required players connect and break isn't used,
-                    // or if serverSocket?.accept() throws after isServerRunning check.
-                    // Consider if stopServerAndDiscovery is needed here.
-                    // For now, let stopServerAndDiscovery handle final cleanup.
-                }
+                log("Server listener loop finished. isServerRunning=$isServerRunning")
+                // No need to set isServerRunning = false here, stopServerAndDiscovery handles it
             }
         }
     }
@@ -269,28 +256,29 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
      * HOST: Registers the game service using NSD. Returns true on success request, false on
      * immediate failure.
      */
-    private fun registerNsdService(port: Int): Boolean {
-        // Cleanup previous listener if any
+    private fun registerNsdService(portToRegister: Int): Boolean { // *** Renamed parameter ***
         if (registrationListener != null) {
+            log("NSD registration already in progress or completed. Unregistering first.")
             try {
                 nsdManager?.unregisterService(registrationListener)
             } catch (e: Exception) {}
             registrationListener = null
+            nsdServiceNameRegistered = null
         }
 
         nsdManager = applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager?
         if (nsdManager == null) {
-            logError("NSD Manager service not available.")
-            viewModelScope.launch { _showError.emit("Network Discovery service unavailable.") }
+            /* Error handling */
             return false
         }
 
         registrationListener =
                 object : NsdManager.RegistrationListener {
                     override fun onServiceRegistered(nsdServiceInfo: NsdServiceInfo) {
-                        nsdServiceNameRegistered =
-                                nsdServiceInfo.serviceName // Store the actual registered name
-                        log("NSD Service registered: $nsdServiceNameRegistered on port $port")
+                        nsdServiceNameRegistered = nsdServiceInfo.serviceName
+                        log(
+                                "NSD Service registered: $nsdServiceNameRegistered on port $portToRegister"
+                        ) // *** Use parameter ***
                     }
                     override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                         logError(
@@ -300,11 +288,12 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                             _showError.emit("Failed to advertise game (Error $errorCode)")
                         }
                         nsdServiceNameRegistered = null
-                        // Consider stopping the server if NSD fails? Depends on requirements.
                     }
                     override fun onServiceUnregistered(arg0: NsdServiceInfo) {
                         log("NSD Service unregistered: ${arg0.serviceName}")
-                        nsdServiceNameRegistered = null
+                        if (arg0.serviceName == nsdServiceNameRegistered) {
+                            nsdServiceNameRegistered = null
+                        }
                     }
                     override fun onUnregistrationFailed(
                             serviceInfo: NsdServiceInfo,
@@ -313,26 +302,19 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         logError(
                                 "NSD unregistration failed for ${serviceInfo.serviceName}: Error $errorCode"
                         )
-                        // May happen if already unregistered or network issues
                     }
                 }
 
-        // Create unique service name
-        val baseName = "Mindikot" // Can use host player name if desired, sanitize it first
+        val baseName = "Mindikot"
         val uniqueName = "${baseName}_${(1000..9999).random()}"
         val serviceInfo =
                 NsdServiceInfo().apply {
                     setServiceName(uniqueName)
                     setServiceType(SERVICE_TYPE)
-                    setPort(port)
-                    // Optional: Add attributes for clients to see in discovery (TXTPacket)
-                    // setAttribute("version", "1.0")
-                    // setAttribute("mode", _state.value.gameMode.name)
-                    // setAttribute("players",
-                    // "${_connectedPlayersCount.value}/${requiredPlayerCount}")
+                    setPort(portToRegister) // *** Use parameter ***
                 }
 
-        log("Attempting to register NSD service: $uniqueName")
+        log("Attempting to register NSD service: $uniqueName on port $portToRegister")
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                 nsdManager?.registerService(
@@ -340,15 +322,13 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         NsdManager.PROTOCOL_DNS_SD,
                         registrationListener
                 )
-                return true // Request submitted
+                return true
             } else {
-                logError("NSD requires API level 16+")
-                viewModelScope.launch { _showError.emit("Network discovery requires Android 4.1+") }
+                /* Error handling */
                 return false
             }
         } catch (e: Exception) {
-            logError("Exception calling registerService", e)
-            viewModelScope.launch { _showError.emit("Error starting network advertisement.") }
+            /* Error handling */
             return false
         }
     }
@@ -358,61 +338,44 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         if (!isHost) return
         if (!isServerRunning && serverSocket == null && registrationListener == null) {
             log("stopServerAndDiscovery called but server/NSD not active.")
-            return // Already stopped or never started
+            return
         }
         log("Stopping server and NSD...")
-        isServerRunning = false // Signal loops/jobs to stop
+        isServerRunning = false
 
         // 1. Unregister NSD
         if (nsdManager != null && registrationListener != null) {
             log("Unregistering NSD service: $nsdServiceNameRegistered")
             try {
                 nsdManager?.unregisterService(registrationListener)
-            } catch (e: IllegalArgumentException) {
-                log("NSD Listener likely already unregistered: ${e.message}")
             } catch (e: Exception) {
-                logError("Error unregistering NSD service", e)
+                /* Error handling */
             } finally {
                 registrationListener = null
-            }
-        } else {
-            log("NSD Manager or Listener was null, skipping unregister.")
+            } // Clear listener ref
         }
 
-        // 2. Close Server Socket (this will interrupt the accept() call)
+        // 2. Close Server Socket
         runCatching { serverSocket?.close() }.onSuccess { log("Server socket closed.") }.onFailure {
             logError("Error closing server socket", it)
         }
         serverSocket = null
+        servicePort = 0 // Reset port
 
-        // 3. Cancel all client listener jobs
-        clientJobs.values.forEach { it.cancel("Server stopping") }
-        clientJobs.clear()
+        // 3. Cancel client jobs & close connections
+        val clientIds = clientSockets.keys.toList()
+        clientIds.forEach { removeClient(it) } // Use removeClient for thorough cleanup
 
-        // 4. Close all client connections
-        val clientIds = clientSockets.keys.toList() // Avoid concurrent mod
-        clientIds.forEach { id ->
-            // Use removeClient for full cleanup of each
-            removeClient(id)
-        }
-        // Ensure maps are clear
-        clientSockets.clear()
-        clientWriters.clear()
-        clientReaders.clear()
-
-        // Reset host-specific state
+        // 4. Reset host state
         _connectedPlayersCount.value = 0
         _gameStarted.value = false
         _hostIpAddress.value = null
-        _state.value = createInitialEmptyGameState() // Reset game state
-
+        _state.value = createInitialEmptyGameState()
         log("Server stopped, NSD unregistered, connections closed.")
     }
 
-    // --- Other Host Functions (listenToClient, handleClientMessage, prepareAndBroadcast, etc. -
-    // KEEP AS IS) ---
-    // ... (Assume these are mostly correct from previous step, ensure logging/error handling is
-    // adequate)
+    // ... (Rest of HOST functions: listenToClient, handleClientMessage, prepareAndBroadcast, etc.)
+    // ...
     /** HOST: Starts a listener coroutine for a specific client. */
     private fun listenToClient(playerId: Int, reader: BufferedReader) {
         clientJobs[playerId] =
@@ -559,7 +522,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                     hiddenCard = deck.removeAt(0)
                     log("Hidden card set (Mode B): ${hiddenCard.suit}")
                 } else {
-                    /* Error handling */
+                    logError("Deck empty")
                     return@launch
                 }
             }
@@ -576,7 +539,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                     updatedPlayers[i] = updatedPlayers[i].copy(hand = handCards)
                     deck.removeAll(handCards.toSet())
                 } else {
-                    /* Error handling */
+                    logError("Player index OOB during dealing")
                 }
             }
             log("Cards dealt. Remaining deck: ${deck.size}")
@@ -596,7 +559,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
 
             broadcastGameState(_state.value)
             log("Initial GameState broadcast.")
-            _gameStarted.value = true // Set game started flag
+            _gameStarted.value = true
         }
     }
 
@@ -605,9 +568,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         if (!isHost) return
         val message = NetworkMessage(MessageType.GAME_STATE_UPDATE, gameState)
         log("Broadcasting GameState to ${clientWriters.size} clients...")
-        clientWriters.keys.toList().forEach { id -> // Iterate safely
-            sendMessageToClient(id, message)
-        }
+        clientWriters.keys.toList().forEach { id -> sendMessageToClient(id, message) }
         log("Broadcast attempt complete.")
     }
 
@@ -622,15 +583,12 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val messageJson = gson.toJson(message)
-                synchronized(writer) { writer.println(messageJson) } // Synchronize write access
+                synchronized(writer) { writer.println(messageJson) }
                 if (writer.checkError()) {
                     throw Exception("PrintWriter error after write.")
                 }
-                // log("Sent to Player $playerId: ${message.type}") // Reduce verbose logging if
-                // needed
             } catch (e: Exception) {
                 logError("Error sending message to Player $playerId", e)
-                // Assume client disconnected on send error
                 withContext(Dispatchers.Main) { removeClient(playerId) }
             }
         }
@@ -638,23 +596,16 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
 
     /** HOST: Cleans up resources associated with a disconnected or removed client. */
     private fun removeClient(playerId: Int) {
-        // Use Main.immediate if possibly called from background thread completion handlers
         viewModelScope.launch(Dispatchers.Main.immediate) {
-            if (!clientSockets.containsKey(playerId)) return@launch // Already removed
+            if (!clientSockets.containsKey(playerId)) return@launch
 
             log("Removing client Player $playerId...")
             clientJobs[playerId]?.cancel("Client removed")
             clientJobs.remove(playerId)
 
-            runCatching { clientWriters[playerId]?.close() }.onFailure {
-                logError("Error closing writer for $playerId", it)
-            }
-            runCatching { clientReaders[playerId]?.close() }.onFailure {
-                logError("Error closing reader for $playerId", it)
-            }
-            runCatching { clientSockets[playerId]?.close() }.onFailure {
-                logError("Error closing socket for $playerId", it)
-            }
+            runCatching { clientWriters[playerId]?.close() }
+            runCatching { clientReaders[playerId]?.close() }
+            runCatching { clientSockets[playerId]?.close() }
 
             clientWriters.remove(playerId)
             clientReaders.remove(playerId)
@@ -667,15 +618,13 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             )
 
             if (_gameStarted.value) {
-                // Handle game interruption more gracefully?
-                // For now, just inform everyone and maybe stop the game/server
                 val playerName =
                         _state.value.players.find { it.id == playerId }?.name ?: "Player $playerId"
                 _showError.emit("$playerName disconnected. Game interrupted.")
                 broadcastGameState(
                         _state.value.copy(
                                 players =
-                                        _state.value.players.map { // Mark player visually
+                                        _state.value.players.map {
                                             if (it.id == playerId)
                                                     it.copy(
                                                             name = "$playerName [LEFT]",
@@ -685,10 +634,8 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                                         }
                         )
                 )
-                // Consider stopping the game fully?
-                // stopServerAndDiscovery()
+                // stopServerAndDiscovery() // Consider stopping the game
             } else {
-                // Still in lobby
                 _state.update { state ->
                     val updatedPlayers =
                             state.players.map {
@@ -711,7 +658,6 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     fun startNsdDiscovery() {
         if (isHost) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Check permission for Android 12+
             if (ContextCompat.checkSelfPermission(
                             applicationContext,
                             Manifest.permission.ACCESS_FINE_LOCATION
@@ -723,19 +669,17 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 viewModelScope.launch {
                     _showError.emit("Location permission needed to find games.")
                 }
-                // UI should prompt for permission
                 return
             }
         }
 
         log("Client: Starting NSD discovery...")
-        stopNsdDiscovery() // Stop previous discovery first
-        _discoveredHosts.value = emptyList() // Clear previous results
+        stopNsdDiscovery()
+        _discoveredHosts.value = emptyList()
 
         nsdManager = applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager?
         if (nsdManager == null) {
-            logError("NSD Manager service not available.")
-            viewModelScope.launch { _showError.emit("Network Discovery service unavailable.") }
+            /* Error handling */
             return
         }
 
@@ -748,10 +692,11 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         log(
                                 "NSD service found: ${service.serviceName}, type: ${service.serviceType}"
                         )
+                        // Filter for correct type and avoid resolving self if host somehow
+                        // discovers its own service
                         if (service.serviceType == SERVICE_TYPE &&
                                         service.serviceName != nsdServiceNameRegistered
-                        ) { // Avoid discovering self if somehow registered
-                            log("Attempting to resolve service: ${service.serviceName}")
+                        ) {
                             resolveNsdService(service)
                         }
                     }
@@ -769,7 +714,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         viewModelScope.launch {
                             _showError.emit("Failed to search for games (Error $errorCode)")
                         }
-                        stopNsdDiscovery() // Cleanup on failure
+                        stopNsdDiscovery()
                     }
                     override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
                         logError("NSD discovery stop failed: Error code $errorCode")
@@ -787,69 +732,41 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 /* Handle older API error */
             }
         } catch (e: Exception) {
-            logError("Exception calling discoverServices", e)
-            viewModelScope.launch { _showError.emit("Error starting network search.") }
+            /* Error handling */
         }
     }
 
     /** CLIENT: Resolves a discovered service to get host and port */
     private fun resolveNsdService(serviceInfo: NsdServiceInfo) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN || nsdManager == null) return
+        if (_discoveredHosts.value.any { it.serviceName == serviceInfo.serviceName && it.host != null }) return
 
-        // Check if already resolved or resolving this specific service name to avoid spamming
-        // resolves
-        if (_discoveredHosts.value.any {
-                    it.serviceName == serviceInfo.serviceName && it.host != null
-                }
-        ) {
-            log("Service ${serviceInfo.serviceName} already resolved.")
-            return
-        }
         log("Resolving NSD service: ${serviceInfo.serviceName}")
-
-        // Use a local listener instance
-        val listener =
-                object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(
-                            failedServiceInfo: NsdServiceInfo,
-                            errorCode: Int
-                    ) {
-                        logError(
-                                "NSD resolve failed for ${failedServiceInfo.serviceName}: Error code $errorCode"
-                        )
-                        // Optionally remove from a "resolving" list if tracking attempts
-                    }
-                    override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
-                        log(
-                                "NSD service resolved: ${resolvedServiceInfo.serviceName} at ${resolvedServiceInfo.host}:${resolvedServiceInfo.port}"
-                        )
-                        // Update the list on the Main thread
-                        viewModelScope.launch(Dispatchers.Main) {
-                            _discoveredHosts.update { list ->
-                                val existingIndex =
-                                        list.indexOfFirst {
-                                            it.serviceName == resolvedServiceInfo.serviceName
-                                        }
-                                if (existingIndex != -1) {
-                                    // Update existing entry
-                                    list.toMutableList().apply {
-                                        set(existingIndex, resolvedServiceInfo)
-                                    }
-                                } else {
-                                    // Add new entry
-                                    list + resolvedServiceInfo
-                                }
-                            }
+        val listener = object : NsdManager.ResolveListener {
+            override fun onResolveFailed(failedServiceInfo: NsdServiceInfo, errorCode: Int) {
+                logError("NSD resolve failed for ${failedServiceInfo.serviceName}: Error code $errorCode")
+            }
+            @Suppress("DEPRECATION") // Suppress warning for serviceInfo.host
+            override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
+                log("NSD service resolved: ${resolvedServiceInfo.serviceName} at ${resolvedServiceInfo.host}:${resolvedServiceInfo.port}")
+                viewModelScope.launch(Dispatchers.Main) {
+                    _discoveredHosts.update { list ->
+                        val existingIndex = list.indexOfFirst { it.serviceName == resolvedServiceInfo.serviceName }
+                        if (existingIndex != -1) {
+                            list.toMutableList().apply { set(existingIndex, resolvedServiceInfo) }
+                        } else {
+                            list + resolvedServiceInfo
                         }
                     }
                 }
-
-        try {
-            nsdManager?.resolveService(serviceInfo, listener)
-        } catch (e: Exception) {
-            logError("Exception calling resolveService for ${serviceInfo.serviceName}", e)
+            }
         }
+        try {
+            @Suppress("DEPRECATION") // Suppress warning for resolveService call
+            nsdManager?.resolveService(serviceInfo, listener)
+        } catch (e: Exception) { logError("Exception calling resolveService for ${serviceInfo.serviceName}", e)}
     }
+
 
     /** CLIENT: Stops NSD discovery */
     fun stopNsdDiscovery() {
@@ -859,93 +776,69 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                 nsdManager?.stopServiceDiscovery(discoveryListener)
             }
-        } catch (e: IllegalArgumentException) {
-            log("NSD Discovery likely already stopped: ${e.message}")
         } catch (e: Exception) {
-            logError("Error stopping NSD discovery", e)
+            /* Error handling */
         } finally {
-            discoveryListener = null // Release listener
-            // Don't nullify nsdManager here, might be needed for other operations or restart
-            _discoveredHosts.value = emptyList() // Clear discovered hosts when stopping search
+            discoveryListener = null
+            _discoveredHosts.value = emptyList()
         }
     }
 
+
+
     /** CLIENT: Connects to a selected discovered host */
     fun connectToDiscoveredHost(serviceInfo: NsdServiceInfo, playerName: String) {
-        val hostAddress = serviceInfo.host?.hostAddress // Resolved IP address
-        val port = serviceInfo.port // Resolved port
-
+        @Suppress("DEPRECATION") // Suppress warning for serviceInfo.host
+        val hostAddress = serviceInfo.host?.hostAddress
+        val port = serviceInfo.port
         if (hostAddress != null && port > 0) {
-            log(
-                    "Client: Connecting to selected host: ${serviceInfo.serviceName} ($hostAddress:$port)"
-            )
-            connectToServer(hostAddress, port, playerName) // Use existing connectToServer logic
+            log("Client: Attempting connection to selected host: ${serviceInfo.serviceName} ($hostAddress:$port)")
+            connectToServer(hostAddress, port, playerName)
         } else {
-            logError(
-                    "Client: Cannot connect, resolved service info is invalid (missing host/port): $serviceInfo"
-            )
-            viewModelScope.launch {
-                _showError.emit(
-                        "Failed to get connection details for '${serviceInfo.serviceName}'. Please refresh."
-                )
-            }
+            logError("Client: Cannot connect, resolved service info is invalid (missing host/port): $serviceInfo")
+            viewModelScope.launch { _showError.emit("Failed to get connection details for '${serviceInfo.serviceName}'. Please refresh.") }
         }
     }
 
     /** CLIENT: Connects to the game host using IP/Port */
     fun connectToServer(hostAddress: String, port: Int = 8888, playerName: String) {
-        if (isConnectedToServer || isHost) {
-            log("Client: Already connected or is host. Aborting connection.")
-            return
-        }
+        if (isConnectedToServer || isHost) return
         log("Client: Attempting connection to $hostAddress:$port...")
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Ensure prior connection attempt is fully cleaned up
-                disconnectFromServer()
-                delay(100) // Brief pause before new attempt
-
+                disconnectFromServer() // Ensure cleanup before connect
+                delay(100)
                 clientSocket = Socket(hostAddress, port)
                 clientWriter = PrintWriter(clientSocket!!.getOutputStream(), true)
                 clientReader = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
-                isConnectedToServer = true // Set flag *after* successful setup
-                log("Client: Connected successfully to $hostAddress:$port.")
-
-                listenToServer() // Start listening for server messages
-                sendMessageToServer(
-                        NetworkMessage(MessageType.PLAYER_NAME, playerName)
-                ) // Send name
-
-                // UI should navigate to waiting screen here
-
+                isConnectedToServer = true
+                log("Client: Connected successfully.")
+                listenToServer()
+                sendMessageToServer(NetworkMessage(MessageType.PLAYER_NAME, playerName))
             } catch (e: Exception) {
                 logError("Client: Connection to $hostAddress:$port failed", e)
                 isConnectedToServer = false
                 withContext(Dispatchers.Main) { _showError.emit("Connection failed: ${e.message}") }
-                disconnectFromServer() // Cleanup on failure
+                disconnectFromServer() // Cleanup
             }
         }
     }
 
     /** CLIENT: Listens for messages from the server */
     private fun listenToServer() {
-        clientReaderJob?.cancel() // Ensure only one listener
+        clientReaderJob?.cancel()
         clientReaderJob =
                 viewModelScope.launch(Dispatchers.IO) {
                     log("Client: Listener started.")
                     try {
                         while (isActive) {
-                            val messageJson =
-                                    clientReader?.readLine()
-                                            ?: break // null means connection closed
-                            // log("Client: Received raw: $messageJson") // Verbose logging
+                            val messageJson = clientReader?.readLine() ?: break
                             try {
                                 val message = gson.fromJson(messageJson, NetworkMessage::class.java)
                                 withContext(Dispatchers.Main.immediate) {
                                     handleServerMessage(message)
                                 }
                             } catch (e: Exception) {
-                                /* Handle parse/processing errors */
                                 logError("Client: Error handling message", e)
                             }
                         }
@@ -955,7 +848,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         }
                     } finally {
                         log("Client: Listener stopped.")
-                        withContext(Dispatchers.Main) { disconnectFromServer() } // Ensure cleanup
+                        withContext(Dispatchers.Main) { disconnectFromServer() }
                     }
                 }
         clientReaderJob?.invokeOnCompletion { /* Optional logging */}
@@ -978,10 +871,9 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 try {
                     val gameStateJson = gson.toJson(message.data)
                     val updatedState = gson.fromJson(gameStateJson, GameState::class.java)
-                    if (updatedState.players.isEmpty() && _state.value.players.isNotEmpty()) {
-                        logError("Client: Received potentially invalid empty GameState, ignoring.")
-                        return // Avoid resetting state unexpectedly
-                    }
+                    if (updatedState.players.isEmpty() && _state.value.players.isNotEmpty())
+                            return // Ignore potential invalid empty state
+
                     _state.value = updatedState
                     _connectedPlayersCount.value =
                             updatedState.players.count {
@@ -990,6 +882,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                     log(
                             "Client: GameState updated. Awaiting: ${updatedState.awaitingInputFromPlayerIndex}"
                     )
+
                     val myHand = updatedState.players.find { it.id == localPlayerId }?.hand
                     if (!_gameStarted.value && myHand?.isNotEmpty() == true) {
                         _gameStarted.value = true
@@ -1004,7 +897,6 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 logError("Client: Received error from server: $errorMsg")
                 viewModelScope.launch { _showError.emit(errorMsg) }
             }
-            // Handle other specific messages like ROUND_RESULT if added
             else -> log("Client: Received unhandled message type: ${message.type}")
         }
     }
@@ -1019,49 +911,35 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                 if (clientWriter?.checkError() == true) {
                     throw Exception("PrintWriter error")
                 }
-                // log("Client: Sent message: ${message.type}") // Less verbose potentially
             } catch (e: Exception) {
                 logError("Client: Error sending message", e)
-                withContext(Dispatchers.Main) {
-                    _showError.emit("Connection error. Failed to send.")
-                }
-                // Consider disconnecting on send error
-                // disconnectFromServer()
+                withContext(Dispatchers.Main) { _showError.emit("Connection error.") }
             }
         }
     }
 
     /** CLIENT: Disconnects from the server and cleans up resources */
     fun disconnectFromServer() {
-        if (isHost || (!isConnectedToServer && clientSocket == null))
-                return // Already disconnected or host
+        if (isHost || (!isConnectedToServer && clientSocket == null)) return
 
         log("Client: Disconnecting...")
-        isConnectedToServer = false // Set flag first
-        clientReaderJob?.cancel("Client disconnecting") // Cancel listener
+        isConnectedToServer = false
+        clientReaderJob?.cancel("Client disconnecting")
         clientReaderJob = null
 
-        // Close streams and socket safely
-        runCatching { clientWriter?.close() }.onFailure {
-            logError("Error closing client writer", it)
-        }
-        runCatching { clientReader?.close() }.onFailure {
-            logError("Error closing client reader", it)
-        }
-        runCatching { clientSocket?.close() }.onFailure {
-            logError("Error closing client socket", it)
-        }
+        runCatching { clientWriter?.close() }
+        runCatching { clientReader?.close() }
+        runCatching { clientSocket?.close() }
 
         clientSocket = null
         clientWriter = null
         clientReader = null
 
-        // Reset client-specific state
         _gameStarted.value = false
-        _state.value = createInitialEmptyGameState() // Reset state
+        _state.value = createInitialEmptyGameState()
         localPlayerId = -1
         _connectedPlayersCount.value = 0
-        log("Client: Disconnected and cleaned up.")
+        log("Client: Disconnected.")
     }
 
     // ========================================================================
@@ -1075,25 +953,17 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         viewModelScope.launch(Dispatchers.Main.immediate) {
             val currentState = _state.value
             if (currentState.awaitingInputFromPlayerIndex != actingPlayerId) {
-                logError(
-                        "Input processed for wrong player. Expected: ${currentState.awaitingInputFromPlayerIndex}, Got: $actingPlayerId"
-                )
-                sendMessageToClient(
-                        actingPlayerId,
-                        NetworkMessage(MessageType.ERROR, "Not your turn")
-                )
+                /* Error Handling */
                 return@launch
             }
 
             log("Host: Processing input from Player $actingPlayerId: $playerInput")
             try {
-                // IMPORTANT: GameEngine modifies the state object passed to it.
-                // Consider passing a deep copy if you need to revert on error,
-                // but for now, we let it modify directly.
-                GameEngine.processPlayerInput(currentState, playerInput)
-
-                // Update the StateFlow with the modified state
-                _state.value = currentState // Trigger UI update
+                GameEngine.processPlayerInput(
+                        currentState,
+                        playerInput
+                ) // Modifies currentState directly
+                _state.value = currentState // Update StateFlow
 
                 val roundEnded =
                         currentState.players.firstOrNull()?.hand?.isEmpty() == true &&
@@ -1105,34 +975,25 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                     log(
                             "Host: Round Result: Winner=${result.winningTeam?.id ?: "Draw"}, Kot=${result.isKot}"
                     )
-                    // TODO: Update game scores
-
-                    broadcastGameState(currentState) // Broadcast final round state
-                    delay(200) // Allow clients to receive final state
+                    // TODO: Update scores
+                    broadcastGameState(currentState) // Broadcast final state
+                    delay(200)
                     _navigateToResultScreen.emit(result) // Notify host UI
-
-                    // TODO: Handle next round start logic
+                    // TODO: Next round logic
                 } else {
-                    // Round continues, broadcast updated state
-                    broadcastGameState(currentState)
+                    broadcastGameState(currentState) // Broadcast updated state
                 }
             } catch (e: IllegalStateException) {
-                logError(
-                        "Host: Invalid move detected by GameEngine for Player $actingPlayerId: ${e.message}"
-                )
+                logError("Host: Invalid move detected for Player $actingPlayerId: ${e.message}")
                 sendMessageToClient(
                         actingPlayerId,
                         NetworkMessage(MessageType.ERROR, "Invalid Move: ${e.message}")
                 )
-                // Re-request input from the same player based on the CURRENT state
+                // Re-request input without changing state drastically
                 _state.value = GameEngine.requestInput(currentState, actingPlayerId)
                 broadcastGameState(_state.value)
             } catch (e: Exception) {
-                logError(
-                        "Host: Unexpected error processing game input for Player $actingPlayerId",
-                        e
-                )
-                _showError.emit("Internal Server Error.")
+                /* Error handling */
             }
         }
     }
@@ -1149,19 +1010,19 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         val expectedInput = currentState.requiredInputType
 
         if (!myTurn) {
-            /* Error handling */
+            viewModelScope.launch { _showError.emit("Not your turn!") }
             return
         }
         if (expectedInput != InputType.PLAY_CARD && expectedInput != InputType.CHOOSE_TRUMP_SUIT) {
-            /* Error handling */
+            viewModelScope.launch { _showError.emit("Cannot play card now.") }
             return
         }
         if (currentState.players.find { it.id == localPlayerId }?.hand?.contains(card) != true) {
-            /* Error handling */
+            viewModelScope.launch { _showError.emit("Card not in hand!") }
             return
         }
 
-        // Basic client-side validation (is card valid based on known rules?) Optional but good UX
+        // Client-side valid move check (optional but improves UX)
         val validMoves =
                 GameEngine.determineValidMoves(
                         currentState.players.find { it.id == localPlayerId }?.hand ?: emptyList(),
@@ -1170,7 +1031,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         currentState.trumpRevealed
                 )
         if (!validMoves.contains(card)) {
-            logError("UI Action: Attempted to play invalid card $card. Valid: $validMoves")
+            logError("UI Action: Invalid card $card played. Valid: $validMoves")
             viewModelScope.launch { _showError.emit("Invalid move.") }
             return
         }
@@ -1189,7 +1050,8 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         if (currentState.awaitingInputFromPlayerIndex != localPlayerId ||
                         currentState.requiredInputType != InputType.REVEAL_OR_PASS
         ) {
-            /* Error handling */ return
+            viewModelScope.launch { _showError.emit("Cannot Reveal or Pass now.") }
+            return
         }
         if (isHost) {
             processGameInput(localPlayerId, decision)
@@ -1219,7 +1081,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
         var nameChanged = false
         _state.update { currentState ->
             val currentName = currentState.players.find { it.id == playerId }?.name
-            if (currentName != name) {
+            if (currentName != name && name.isNotBlank()) { // Add check for blank name
                 nameChanged = true
                 val updatedPlayers =
                         currentState.players.map {
@@ -1227,25 +1089,30 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
                         }
                 currentState.copy(players = updatedPlayers)
             } else {
-                currentState // No change needed
+                currentState
             }
         }
         if (nameChanged) {
-            broadcastGameState(_state.value) // Broadcast if changed
+            broadcastGameState(_state.value)
         }
     }
 
     /** Gets the local IP address (needs refinement for robustness) */
     private fun getLocalIpAddress(): InetAddress? {
+        // This is a basic implementation. Consider libraries or more checks for complex networks.
         return try {
-            val interfaces = java.net.NetworkInterface.getNetworkInterfaces().toList()
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()?.toList()
             interfaces
-                    .flatMap { intf ->
-                        intf.inetAddresses.toList().filter { addr ->
-                            !addr.isLoopbackAddress && addr is java.net.Inet4Address
+                    ?.flatMap { intf ->
+                        intf.inetAddresses?.toList()?.filter { addr ->
+                            !addr.isLoopbackAddress &&
+                                    addr is java.net.Inet4Address &&
+                                    addr.hostAddress?.startsWith("192.168.") ==
+                                            true // Common for WiFi, adjust if needed
                         }
+                                ?: emptyList()
                     }
-                    .firstOrNull()
+                    ?.firstOrNull()
         } catch (e: Exception) {
             logError("Could not determine local IP address", e)
             null
@@ -1261,8 +1128,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             stopNsdDiscovery()
             disconnectFromServer()
         }
-        // Release NSD Manager reference if held
-        // nsdManager = null // Consider if needed, might interfere if discovery restarts quickly
+        // Optionally nullify NSD manager if strictly needed: nsdManager = null
         super.onCleared()
     }
 }
@@ -1285,22 +1151,16 @@ class GameViewModelFactory(private val context: Context) : ViewModelProvider.Fac
 
 /** Defines the type of message being sent over the network. */
 enum class MessageType {
-    ASSIGN_ID, // Server -> Client: Your assigned player ID {data: Int}
-    GAME_STATE_UPDATE, // Server -> Client: The current full GameState {data: GameState}
-    PLAYER_ACTION, // Client -> Server: Player performed an action {data: Card or
-    // GameEngine.Decision}
-    // REQUEST_INPUT,      // Server -> Client: It's your turn (optional) {data: PlayerID}
-    PLAYER_NAME, // Client -> Server: Sending player's chosen name {data: String}
-    ERROR // Server -> Client: An error occurred {data: String}
-    // Consider: ROUND_RESULT, GAME_OVER, PING, PONG etc.
+    ASSIGN_ID, // Server -> Client: {data: Int}
+    GAME_STATE_UPDATE, // Server -> Client: {data: GameState}
+    PLAYER_ACTION, // Client -> Server: {data: Card or GameEngine.Decision}
+    PLAYER_NAME, // Client -> Server: {data: String}
+    ERROR // Server -> Client: {data: String}
+    // Consider: ROUND_RESULT, GAME_OVER, DISCONNECT_NOTICE
 }
 
 /** Represents a message sent between the host and clients. */
 data class NetworkMessage(
         val type: MessageType,
-        /**
-         * Data payload. Needs careful serialization/deserialization based on 'type'. Use specific
-         * data classes or robust JSON handling (e.g., kotlinx.serialization polymorphic)
-         */
-        val data: Any? = null
+        val data: Any? = null // Requires careful serialization/deserialization
 )
