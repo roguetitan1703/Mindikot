@@ -3,9 +3,13 @@ package com.example.mindikot.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mindikot.core.model.*
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import com.example.mindikot.core.state.GameState
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.ServerSocket
+
 class GameViewModel : ViewModel() {
 
     private val _state = MutableStateFlow(generateInitialGameState())
@@ -14,73 +18,19 @@ class GameViewModel : ViewModel() {
     private val _navigateToResultScreen = MutableSharedFlow<Unit>()
     val navigateToResultScreen: SharedFlow<Unit> = _navigateToResultScreen.asSharedFlow()
 
-    fun selectTrump(suit: Suit) {
-        _state.update {
-            it.copy(trumpSuit = suit, trumpRevealed = true)
-        }
-    }
+    var isHost: Boolean = false
+        private set
 
-    fun playTrick() {
-        val newPlayers = state.value.players.map { player ->
-            if (player.hand.isNotEmpty()) {
-                player.copy(hand = player.hand.drop(1).toMutableList())
-            } else player
-        }
+    var requiredPlayerCount: Int = 4
+        private set
 
-        val updatedTeams = state.value.teams.map { team ->
-            val cardsGained = (1..2).map {
-                Card(Suit.values().random(), Rank.values().random())
-            }.toMutableList()
+    private val _gameStarted = MutableStateFlow(false)
+    val gameStarted: StateFlow<Boolean> = _gameStarted
 
-            team.copy(collectedCards = (team.collectedCards + cardsGained).toMutableList())
-        }
+    private var serverSocket: ServerSocket? = null
+    private var isServerRunning = false
 
-        _state.update {
-            it.copy(players = newPlayers, teams = updatedTeams)
-        }
-
-        if (newPlayers.all { it.hand.isEmpty() }) {
-            viewModelScope.launch {
-                _navigateToResultScreen.emit(Unit)
-            }
-        }
-    }
-
-    fun restartGame() {
-        _state.value = generateInitialGameState()
-    }
-
-    private fun generateInitialGameState(): GameState {
-        val deck = generateDeck().shuffled()
-        val players = List(4) { index ->
-            val teamId = if (index % 2 == 0) 1 else 2  // Assign teamId based on player position
-            Player(
-                id = index,
-                name = "Player ${index + 1}",
-                teamId = teamId,  // Pass teamId here
-                hand = deck.drop(index * 5).take(5).toMutableList()
-            )
-        }
-
-        val teams = listOf(
-            Team(id = 1, players = listOf(players[0], players[2])),
-            Team(id = 2, players = listOf(players[1], players[3]))
-        )
-
-        return GameState(
-            players = players,
-            teams = teams,
-            gameMode = GameMode.FIRST_CARD_HIDDEN,  // Default game mode
-            trumpSuit = null,
-            trumpRevealed = false
-        )
-    }
-    fun changeGameMode(newMode: GameMode) {
-        _state.update {
-            it.copy(gameMode = newMode)
-        }
-    }
-
+    // Set up the game for the host with a given number of players and a mode.
     fun setupGame(playerName: String, mode: GameMode, host: Boolean = false, playersNeeded: Int = 4) {
         isHost = host
         requiredPlayerCount = playersNeeded
@@ -89,42 +39,148 @@ class GameViewModel : ViewModel() {
         val player = Player(
             id = 0,
             name = playerName,
-            teamId = 0,
+            teamId = 1,  // Player 1 will always start on Team 1
             hand = deck.take(5).toMutableList()
         )
 
+        val players = mutableListOf(player)
+        
+        // Create other players (Initially empty hands for others)
+        for (i in 1 until playersNeeded) {
+            players.add(
+                Player(
+                    id = i,
+                    name = "Player ${i + 1}",
+                    teamId = if (i % 2 == 0) 1 else 2, // Alternate teams
+                    hand = mutableListOf()
+                )
+            )
+        }
+
         val teams = listOf(
-            Team(id = 1, players = listOf(player)),
-            Team(id = 2, players = listOf()) // placeholder
+            Team(id = 1, players = players.filter { it.teamId == 1 }),
+            Team(id = 2, players = players.filter { it.teamId == 2 })
         )
 
         _state.value = GameState(
-            players = listOf(player),
+            players = players,
             teams = teams,
             gameMode = mode
         )
     }
 
+    // Change a player's team to either 1 or 2, reassign the teams dynamically.
+    fun changePlayerTeam(playerId: Int, newTeamId: Int) {
+        if (newTeamId != 1 && newTeamId != 2) return
+
+        val updatedPlayers = _state.value.players.map { player ->
+            if (player.id == playerId) {
+                player.copy(teamId = newTeamId)
+            } else {
+                player
+            }
+        }
+
+        val team1Players = updatedPlayers.filter { it.teamId == 1 }
+        val team2Players = updatedPlayers.filter { it.teamId == 2 }
+
+        val balancedTeams = if (requiredPlayerCount == 4) {
+            listOf(
+                Team(id = 1, players = team1Players.take(2)),
+                Team(id = 2, players = team2Players.take(2))
+            )
+        } else {
+            listOf(
+                Team(id = 1, players = team1Players.take(3)),
+                Team(id = 2, players = team2Players.take(3))
+            )
+        }
+
+        _state.update {
+            it.copy(players = updatedPlayers, teams = balancedTeams)
+        }
+    }
+
+    // Function to add a new player when a player joins the server
+    private fun addNewPlayer(name: String) {
+        val currentPlayers = _state.value.players
+        val newPlayer = Player(
+            id = currentPlayers.size,
+            name = name,
+            teamId = if (currentPlayers.size % 2 == 0) 1 else 2, // Alternate teams
+            hand = mutableListOf()
+        )
+
+        val updatedPlayers = currentPlayers + newPlayer
+        val updatedTeams = listOf(
+            Team(id = 1, players = updatedPlayers.filter { it.teamId == 1 }),
+            Team(id = 2, players = updatedPlayers.filter { it.teamId == 2 })
+        )
+
+        _state.update {
+            it.copy(players = updatedPlayers, teams = updatedTeams)
+        }
+    }
+
+    // Start the server to host the game
+    fun startServer(port: Int = 8888) {
+        if (isServerRunning) return
+
+        isServerRunning = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                serverSocket = ServerSocket(port)
+                println("Hosting game on port $port")
+
+                while (isServerRunning) {
+                    val socket = serverSocket?.accept() ?: break
+                    val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                    val playerName = reader.readLine()
+
+                    println("Player joined: $playerName")
+
+                    withContext(Dispatchers.Main) {
+                        addNewPlayer(playerName)
+                    }
+                }
+            } catch (e: Exception) {
+                println("Server error: ${e.message}")
+            }
+        }
+    }
+
+    // Stop the server
+    fun stopServer() {
+        isServerRunning = false
+        serverSocket?.close()
+        serverSocket = null
+    }
+
+    // Function to generate the initial game state
     private fun generateDeck(): List<Card> {
         return Suit.entries.flatMap { suit ->
             Rank.entries.map { rank -> Card(suit, rank) }
         }
     }
 
-    // Host/Join role
-    var isHost: Boolean = false
-        private set
+    // Reset the game
+    fun restartGame() {
+        _state.value = generateInitialGameState()
+    }
 
-    // Number of players required for this game
-    var requiredPlayerCount: Int = 4
-        private set
-
-    // Game start trigger
-    private val _gameStarted = MutableStateFlow(false)
-    val gameStarted: StateFlow<Boolean> = _gameStarted
+    // Start the game
     fun startGame() {
         _gameStarted.value = true
     }
+
+    // Change the game mode
+    fun changeGameMode(newMode: GameMode) {
+        _state.update {
+            it.copy(gameMode = newMode)
+        }
+    }
+
+    // Set the player's name
     fun setPlayerName(name: String) {
         _state.update { state ->
             state.copy(
@@ -135,5 +191,32 @@ class GameViewModel : ViewModel() {
         }
     }
 
+    // Initial game state
+    fun generateInitialGameState(): GameState {
+        return GameState(
+            players = emptyList(),
+            teams = listOf(
+                Team(id = 1, players = emptyList()),
+                Team(id = 2, players = emptyList())
+            ),
+            trumpSuit = null,
+            trumpRevealed = false,
+            gameMode = GameMode.CHOOSE_WHEN_EMPTY
+        )
+    }
 
+    // Called when ViewModel is cleared (stop the server and clean up)
+    override fun onCleared() {
+        isServerRunning = false
+        serverSocket?.close()
+        super.onCleared()
+    }
+
+    fun selectTrump(suit: Suit) {
+        TODO("Not yet implemented")
+    }
+
+    fun playTrick() {
+        TODO("Not yet implemented")
+    }
 }
