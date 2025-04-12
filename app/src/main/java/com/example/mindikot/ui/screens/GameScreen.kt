@@ -13,12 +13,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.mindikot.ui.GameViewModel
 import com.example.mindikot.core.engine.GameEngine // Needed for Decision and determineValidMoves
 import com.example.mindikot.core.model.Card
 import com.example.mindikot.core.state.InputType
+import com.example.mindikot.ui.GameViewModel
 import com.example.mindikot.ui.components.OtherPlayerDisplay
-import com.example.mindikot.ui.components.PlayerCardView
+import com.example.mindikot.ui.components.CardView
 import com.example.mindikot.ui.components.getSuitSymbol
 import kotlinx.coroutines.flow.collectLatest
 
@@ -276,7 +276,7 @@ fun LocalPlayerArea(
         // --- Player Hand ---
         LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             items(localPlayerHand, key = { "${it.suit}-${it.rank}" }) { card ->
-                PlayerCardView(
+                CardView(
                         card = card,
                         isValidMove = card in validMoves,
                         isPlayable =

@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mindikot.core.model.Card
 
 @Composable
-fun PlayerCardView(
+fun CardView(
         card: Card,
         isValidMove: Boolean, // Can this card be played now?
         isPlayable: Boolean, // Is it generally the player's turn to play any card?
