@@ -17,10 +17,10 @@ object TrickHandler {
         val leadSuit = playedCards.first().second.suit
 
         // Score each play: trump +100, lead-suit + rank, else 0
-        val scored = playedCards.map { (player, card) ->
+        val scored = playedCards.map { (player:Player, card:Card) ->
             val score = when {
-                card.suit == trumpSuit -> card.rank.value + 100
-                card.suit == leadSuit -> card.rank.value
+                card.suit == trumpSuit -> card.rank.displayName.toInt() + 100
+                card.suit == leadSuit -> card.rank.displayName.toInt()
                 else -> 0
             }
             Triple(player, card, score)
