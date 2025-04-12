@@ -4,30 +4,31 @@ import com.example.mindikot.core.model.*
 
 object TrickHandler {
     /**
-     * Determine trick winner based on lead suit and trump.
+     * Determines the winner of a completed trick based on Mindikot rules.
      *
-     * @param playedCards list of (Player to Card) in play order
-     * @param trumpSuit current trump suit (or null)
-     * @return winning Player
+     * @param playedCards A list of (Player, Card) pairs representing the cards played in the trick,
+     * in order.
+     * @param trumpSuit The active trump suit for the round (can be null if trump is not set).
+     * @return The Player who won the trick.
      */
-    fun determineTrickWinner(
-        playedCards: List<Pair<Player, Card>>,
-        trumpSuit: Suit?
-    ): Player {
+    fun determineTrickWinner(playedCards: List<Pair<Player, Card>>, trumpSuit: Suit?): Player {
+        require(playedCards.isNotEmpty()) { "Cannot determine winner of an empty trick." }
+
         val leadSuit = playedCards.first().second.suit
+        // var winningPlay: Pair<Player, Card> = playedCards.first() // Assume leader wins initially
+        var winningPlay: Pair<Player, Card>
 
-        val scored =
-                playedCards.map { (player, card) ->
-                    val score =
-                            when {
-                                card.suit == trumpSuit -> card.rank.value + 100
-                                card.suit == leadSuit -> card.rank.value
-                                else -> 0
-                            }
-                    Triple(player, card, score)
-                }
+        // Check for highest trump card first
+        val trumpPlays = playedCards.filter { it.second.suit == trumpSuit && trumpSuit != null }
+        if (trumpPlays.isNotEmpty()) {
+            winningPlay = trumpPlays.maxByOrNull { it.second.rank.value }!!
+        } else {
+            // No trump played, check for highest card of the lead suit
+            val leadSuitPlays = playedCards.filter { it.second.suit == leadSuit }
+            // We know leadSuitPlays is not empty because the leader played one.
+            winningPlay = leadSuitPlays.maxByOrNull { it.second.rank.value }!!
+        }
 
-        // Highest score wins
-        return scored.maxBy { it.third }.first
+        return winningPlay.first // Return the winning player
     }
 }
