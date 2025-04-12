@@ -15,7 +15,8 @@ import com.example.mindikot.ui.GameViewModel
 fun GameHostScreen(navController: NavController, viewModel: GameViewModel) {
     val gameState by viewModel.state.collectAsState()
     val requiredPlayerCount = if (gameState.players.size == 4) 4 else 6
-    val players = gameState.players
+    val players = gameState.players.sortedBy { if (it.name == viewModel.me) Int.MIN_VALUE else it.id }
+
     val gameMode = gameState.gameMode
     var isGameLoading by remember { mutableStateOf(true) } // Track if the game is being created
 
@@ -60,15 +61,20 @@ fun GameHostScreen(navController: NavController, viewModel: GameViewModel) {
                 items(players) { player ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (player.name == viewModel.me) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surface
+                        ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
                         Text(
-                            text = player.name,
+                            text = player.name + if (player.name == viewModel.me) " (You)" else "",
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
+
             }
 
             // Button to start the game when the required player count is met

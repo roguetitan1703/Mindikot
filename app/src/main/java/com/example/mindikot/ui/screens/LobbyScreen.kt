@@ -17,7 +17,9 @@ import com.example.mindikot.core.model.GameMode
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun LobbyScreen(navController: NavController, viewModel: GameViewModel = viewModel()) {
+fun LobbyScreen(navController: NavController, viewModel: GameViewModel) {
+    // use viewModel here
+
     var playerName by remember { mutableStateOf("") }
     var isHost by remember { mutableStateOf(false) }
     var availableGames by remember { mutableStateOf(listOf<String>()) } // List of available games for joiners
@@ -52,7 +54,7 @@ fun LobbyScreen(navController: NavController, viewModel: GameViewModel = viewMod
 
         val context = LocalContext.current // 🔥 Needed for toast
 
-        Text("Are you a Host or Joiner?")
+        Text("Are you a Host or Randi?")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
@@ -83,7 +85,7 @@ fun LobbyScreen(navController: NavController, viewModel: GameViewModel = viewMod
                     containerColor = if (role == "Joiner") MaterialTheme.colorScheme.primary else Color.Gray
                 )
             ) {
-                Text("Joiner")
+                Text("Randi")
             }
         }
 
