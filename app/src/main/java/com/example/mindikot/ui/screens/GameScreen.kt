@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.mindikot.GameViewModel
+import com.example.mindikot.ui.GameViewModel
 import com.example.mindikot.core.engine.GameEngine // Needed for Decision and determineValidMoves
 import com.example.mindikot.core.model.Card
 import com.example.mindikot.core.state.InputType
