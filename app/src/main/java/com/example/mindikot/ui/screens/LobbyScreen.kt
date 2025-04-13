@@ -127,22 +127,6 @@ fun LobbyScreen(
          }
     }
 
-    // Cleanup network state when leaving the Lobby screen scope (important!)
-    // This ensures that if the user navigates away or presses back,
-    // the server/client connections and NSD are stopped correctly.
-    DisposableEffect(Unit) {
-        onDispose {
-            println("[UI - LobbyScreen] Disposing LobbyScreen. Cleaning up network state.")
-            // Ensure all potential network activities are stopped
-            if (viewModel.isHost) {
-                 viewModel.stopServerAndDiscovery()
-            } else {
-                 viewModel.stopNsdDiscovery()
-                 viewModel.disconnectFromServer()
-            }
-        }
-    }
-
 
     Column(
         modifier = Modifier

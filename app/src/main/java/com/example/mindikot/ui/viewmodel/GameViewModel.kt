@@ -67,7 +67,7 @@ class GameViewModel(
     }
 
     // Use internal StateFlow for modification by extensions/methods
-    internal val _connectedPlayersCount = MutableStateFlow(0) // Includes host if hosting
+    internal val _connectedPlayersCount = MutableStateFlow(1) // Includes host if hosting
     val connectedPlayersCount: StateFlow<Int> = _connectedPlayersCount.asStateFlow()
 
     internal val _gameStarted = MutableStateFlow(false)
