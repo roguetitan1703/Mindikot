@@ -97,7 +97,7 @@ private fun GameViewModel.listenToServer() {
                     break // Exit loop if server closes connection
                 }
 
-                // log("Client: Received from Server: $messageJson") // Can be verbose
+                log("Client: Received from Server: $messageJson") // Can be verbose
                  try {
                      // Basic validation
                      if (!messageJson.startsWith("{") || !messageJson.endsWith("}")) {
@@ -135,7 +135,7 @@ private fun GameViewModel.listenToServer() {
                     _showError.emit("Disconnected from host.") // Inform user
                     disconnectFromServer()
                 } else {
-                    // log("Client: Listener ended, but already marked as disconnected.")
+                    log("Client: Listener ended, but already marked as disconnected.")
                 }
             }
         }
@@ -146,14 +146,14 @@ private fun GameViewModel.listenToServer() {
          if (throwable != null && throwable !is CancellationException) {
              logError("Client: Listener job completed with error", throwable)
          } else {
-             // log("Client: Listener job completed.")
+             log("Client: Listener job completed.")
          }
      }
 }
 
 /** CLIENT: Handles messages received from the server (Runs on Main Thread) */
 private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
-    // log("Client: Handling message: ${message.type}") // Can be verbose
+    log("Client: Handling message: ${message.type}") // Can be verbose
     when (message.type) {
         MessageType.ASSIGN_ID -> {
             // Server sends assigned ID. Gson might parse numbers as Double.
@@ -214,7 +214,7 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
                      it.name != "Waiting..." && it.name != "[Disconnected]" && !it.name.contains("[LEFT]")
                  }
                 _connectedPlayersCount.value = validPlayerCount
-                // log("Client: GameState updated. Players: $validPlayerCount/${updatedState.players.size}. Awaiting: ${updatedState.awaitingInputFromPlayerIndex}. MyID: $localPlayerId") // Verbose
+                log("Client: GameState updated. Players: $validPlayerCount/${updatedState.players.size}. Awaiting: ${updatedState.awaitingInputFromPlayerIndex}. MyID: $localPlayerId") // Verbose
 
                 // Determine if the game has started based on receiving a hand
                 val myHand = updatedState.players.find { it.id == localPlayerId }?.hand
@@ -269,7 +269,7 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
     val writer = clientWriter
 
     if (!isConnectedToServer || isHost || writer == null) { // Check captured writer
-        // log("Client: Cannot send message. Not connected, is host, or writer is null.")
+        log("Client: Cannot send message. Not connected, is host, or writer is null.")
         return
     }
 
@@ -283,7 +283,7 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
                     throw Exception("PrintWriter error after sending ${message.type}")
                 }
             }
-            // log("Client: Sent message type: ${message.type}") // Optional success log
+            log("Client: Sent message type: ${message.type}") // Optional success log
         } catch (e: Exception) {
             logError("Client: Error sending message (${message.type})", e)
             // If sending fails, assume connection issue and disconnect
@@ -301,7 +301,7 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
 fun GameViewModel.disconnectFromServer() {
     // Prevent disconnect if already disconnected or if this device is the host
     if (isHost || (!isConnectedToServer && clientSocket == null)) {
-        // log("Client: Already disconnected or is host. Aborting disconnect.")
+        log("Client: Already disconnected or is host. Aborting disconnect.")
         return
     }
 
@@ -325,7 +325,7 @@ fun GameViewModel.disconnectFromServer() {
         runCatching { writerToClose?.close() }.onFailure { /* Log quietly */ }
         runCatching { readerToClose?.close() }.onFailure { /* Log quietly */ }
         runCatching { socketToClose?.close() }.onFailure { /* Log quietly */ }
-        // log("Client: Network resources closed attempt.") // Verbose
+        log("Client: Network resources closed attempt.") // Verbose
     }
 
 

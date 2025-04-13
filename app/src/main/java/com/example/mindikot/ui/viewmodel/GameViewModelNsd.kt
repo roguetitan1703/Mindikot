@@ -128,7 +128,7 @@ fun GameViewModel.unregisterNsdService() {
             // but we've nulled our reference. Might lead to leaks if NSD manager holds reference.
         }
     } else {
-         // log("NSD Service not registered or listener is null, skipping unregistration.")
+         log("NSD Service not registered or listener is null, skipping unregistration.")
     }
 }
 
@@ -185,7 +185,7 @@ private fun GameViewModel.internalStartNsdDiscovery() {
                 resolvingServices[service.serviceName] = true // Mark as resolving
                 resolveNsdService(service) // Trigger resolution
             } else {
-                 // log("Ignoring found service: Type mismatch (${service.serviceType}), self-discovery, already resolving, or already resolved.")
+                 $("Ignoring found service: Type mismatch (${service.serviceType}), self-discovery, already resolving, or already resolved.")
             }
         }
 
@@ -292,7 +292,7 @@ private fun GameViewModel.resolveNsdService(serviceInfo: NsdServiceInfo) {
 /** CLIENT: Stops NSD discovery */
 fun GameViewModel.stopNsdDiscovery() {
     if (isHost || nsdManager == null || discoveryListener == null) {
-        // log("Client: Skipping NSD stop (not client, manager null, or listener null).")
+        log("Client: Skipping NSD stop (not client, manager null, or listener null).")
         return
     }
 

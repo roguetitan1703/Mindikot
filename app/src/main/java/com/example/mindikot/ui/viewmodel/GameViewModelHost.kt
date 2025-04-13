@@ -255,7 +255,7 @@ private fun GameViewModel.listenToClient(playerId: Int, reader: BufferedReader) 
                     break // Exit loop if connection is closed
                 }
 
-                // log("Received from Player $playerId: $messageJson") // Can be verbose
+                log("Received from Player $playerId: $messageJson") // Can be verbose
                 try {
                     // Basic validation: Check if it looks like JSON
                     if (!messageJson.startsWith("{") || !messageJson.endsWith("}")) {
@@ -305,7 +305,7 @@ private fun GameViewModel.listenToClient(playerId: Int, reader: BufferedReader) 
          if (throwable != null && throwable !is CancellationException) {
              logError("Listener job for Player $playerId completed with error", throwable)
          } else {
-             // log("Listener job for Player $playerId completed normally or cancelled.")
+             log("Listener job for Player $playerId completed normally or cancelled.")
          }
          // Cleanup should be handled in the finally block primarily
      }
@@ -478,12 +478,12 @@ fun GameViewModel.broadcastGameState(gameState: com.example.mindikot.core.state.
     if (!isHost) return
     val message = NetworkMessage(MessageType.GAME_STATE_UPDATE, gameState)
     val clientIds = clientWriters.keys.toList() // Get a stable list of IDs
-    // log("Broadcasting GameState to ${clientIds.size} clients (IDs: $clientIds)...") // Verbose
+     log("Broadcasting GameState to ${clientIds.size} clients (IDs: $clientIds)...") // Verbose
 
     clientIds.forEach { id ->
         sendMessageToClient(id, message) // Use the dedicated send function
     }
-    // log("Broadcast attempt complete.") // Verbose
+     log("Broadcast attempt complete.") // Verbose
 }
 
 
@@ -492,7 +492,7 @@ fun GameViewModel.sendMessageToClient(playerId: Int, message: NetworkMessage) {
     if (!isHost) return
     val writer = clientWriters[playerId]
     if (writer == null) {
-        // log("Cannot send message, writer not found for Player $playerId (already removed?).") // Can be noisy
+        log("Cannot send message, writer not found for Player $playerId (already removed?).") // Can be noisy
         return
     }
 
@@ -509,7 +509,7 @@ fun GameViewModel.sendMessageToClient(playerId: Int, message: NetworkMessage) {
                     throw Exception("PrintWriter error occurred for Player $playerId after sending.")
                 }
             }
-             // log("Sent to Player $playerId: ${message.type}") // Optional: Log successful send
+             log("Sent to Player $playerId: ${message.type}") // Optional: Log successful send
         } catch (e: Exception) {
             logError("Error sending message to Player $playerId (${message.type})", e)
             // If sending fails, assume the client is disconnected and remove them.
@@ -526,7 +526,7 @@ fun GameViewModel.removeClient(playerId: Int) {
      // Ensure this runs on the Main thread
      viewModelScope.launch(Dispatchers.Main.immediate) {
         if (!clientSockets.containsKey(playerId)) {
-            // log("Attempted to remove Player $playerId, but they were not found (already removed?).")
+            log("Attempted to remove Player $playerId, but they were not found (already removed?).")
             return@launch // Already removed or never existed
         }
 
@@ -545,7 +545,7 @@ fun GameViewModel.removeClient(playerId: Int) {
             runCatching { writer?.close() }.onFailure { /* Log quietly */ }
             runCatching { reader?.close() }.onFailure { /* Log quietly */ }
             runCatching { socket?.close() }.onFailure { /* Log quietly */ }
-            // log("Network resources closed attempt for Player $playerId") // Verbose
+            log("Network resources closed attempt for Player $playerId") // Verbose
         }
 
 
