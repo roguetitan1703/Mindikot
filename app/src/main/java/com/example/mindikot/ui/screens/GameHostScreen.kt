@@ -38,8 +38,8 @@ fun GameHostScreen(
 
     // Log state changes for debugging UI
     // LaunchedEffect(connectedCount, gameState.players) {
-    //     println("[UI - GameHostScreen] connectedCount = \$connectedCount, required = \$requiredPlayerCount")
-    //     println("[UI - GameHostScreen] Player List State: \${gameState.players.map { p -> Pair(p.id, p.name) }}")
+    //     println("[UI - GameHostScreen] connectedCount = $connectedCount, required = $requiredPlayerCount")
+    //     println("[UI - GameHostScreen] Player List State: ${gameState.players.map { p -> Pair(p.id, p.name) }}")
     // }
 
 
@@ -71,10 +71,10 @@ fun GameHostScreen(
 
         // Display config only if state is initialized
         if (requiredPlayerCount > 0 && gameState.players.isNotEmpty()) { // Check players list too
-            Text("Mode: \${gameState.gameMode.name}")
-            Text("Players Required: \$requiredPlayerCount")
+            Text("Mode: ${gameState.gameMode.name}")
+            Text("Players Required: $requiredPlayerCount")
             if(hostIp != null) {
-                Text("Your IP: \$hostIp", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text("Your IP: $hostIp", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             } else {
                  Text("Advertising game...", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }

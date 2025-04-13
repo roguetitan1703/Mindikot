@@ -9,7 +9,7 @@ object DeckGenerator {
      * @return A shuffled list of cards for the game.
      */
     fun generateDeck(numPlayers: Int): MutableList<Card> {
-        require(numPlayers == 4 || numPlayers == 6) { "Mindikot supports 4 or 6 players only." }
+        require(numPlayers == 4 || numPlayers == 6 || numPlayers == 2) { "Mindikot supports 2, 4 or 6 players only." }
         val includeTwos = (numPlayers == 4)
 
         val deck = mutableListOf<Card>()

@@ -163,7 +163,7 @@ fun GameStatusHeader(gameState: com.example.mindikot.core.state.GameState) {
         val trumpText = gameState.trumpSuit?.let { getSuitSymbol(it) } ?: "None"
         val trumpColor = if (gameState.trumpRevealed) MaterialTheme.colorScheme.primary else Color.Gray
         Text(
-            text = "Trump: \$trumpText",
+            text = "Trump: $trumpText",
             fontWeight = FontWeight.Bold,
             color = trumpColor
         )
@@ -176,7 +176,7 @@ fun GameStatusHeader(gameState: com.example.mindikot.core.state.GameState) {
                  // Optionally color code team scores based on teamId
                  // val teamColor = if(team.id == 1) Color.Blue else Color.Red
                 Text(
-                    text = " T\${team.id}: \$teamScore",
+                    text = " T${team.id}: $teamScore",
                     modifier = Modifier.padding(start = 4.dp)
                     // color = teamColor
                 )
@@ -214,7 +214,7 @@ fun PlayerBoard(
                  horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
                  verticalAlignment = Alignment.CenterVertically
              ) {
-                items(gameState.currentTrickPlays, key = { "trick_\${it.first.id}" }) { (player, card) ->
+                items(gameState.currentTrickPlays, key = { "trick_${it.first.id}" }) { (player, card) ->
                     // Use a smaller card view for the trick
                     Card(
                         modifier = Modifier
@@ -225,7 +225,7 @@ fun PlayerBoard(
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
-                                text = "\${card.rank.displayName}\${getSuitSymbol(card.suit)}",
+                                text = "${card.rank.displayName}${getSuitSymbol(card.suit)}",
                                 color = getSuitColor(card.suit), // Use helper from components
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
@@ -308,7 +308,7 @@ fun ActionPrompt(gameState: com.example.mindikot.core.state.GameState, localPlay
         currentTurnPlayerId != null -> { // Someone else's turn
             val waitingPlayerName = gameState.players.find { it.id == currentTurnPlayerId }?.name ?: "Opponent"
             // Add "(Partner)" if they are on the same team?
-            "Waiting for \$waitingPlayerName..."
+            "Waiting for $waitingPlayerName..."
         }
         else -> { // No one's turn (e.g., between tricks, before game start, round end)
             if (gameState.players.isNotEmpty() && gameState.players.all { it.hand.isEmpty()} && gameState.currentTrickPlays.isEmpty()) {
@@ -359,7 +359,7 @@ fun LocalPlayerArea(
             horizontalArrangement = Arrangement.spacedBy( (-10).dp, Alignment.CenterHorizontally), // Overlap cards slightly
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(sortedHand, key = { "\${it.suit}-\${it.rank}" }) { card ->
+            items(sortedHand, key = { "${it.suit}-${it.rank}" }) { card ->
                 // Determine if the card is playable based on turn and required input
                  val isPlayableNow = isMyTurn &&
                          (requiredInputType == InputType.PLAY_CARD || requiredInputType == InputType.CHOOSE_TRUMP_SUIT)
@@ -375,7 +375,7 @@ fun LocalPlayerArea(
             }
         }
         // Show hand size
-        Text("Cards: \${localPlayerHand.size}", style = MaterialTheme.typography.bodySmall)
+        Text("Cards: ${localPlayerHand.size}", style = MaterialTheme.typography.bodySmall)
 
 
         Spacer(modifier = Modifier.height(8.dp))
