@@ -9,7 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Modifier // Ensure this import is added
 import androidx.navigation.compose.rememberNavController
-import com.example.mindikot.ui.MainNavHost
+import com.example.mindikot.ui.navigation.MainNavHost
 import com.example.mindikot.ui.components.GameFooter
 import com.example.mindikot.ui.theme.MindikotTheme
 

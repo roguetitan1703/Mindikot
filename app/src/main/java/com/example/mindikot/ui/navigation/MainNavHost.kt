@@ -1,4 +1,4 @@
-package com.example.mindikot.ui
+package com.example.mindikot.ui.navigation // Keep or adjust package as needed
 
 import android.content.Context // Import Context
 import androidx.compose.runtime.Composable
@@ -10,35 +10,44 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 // Import your screens correctly
 import com.example.mindikot.ui.screens.*
-// Import the factory
-import com.example.mindikot.ui.GameViewModelFactory
+// **** FIX: Import ViewModel and Factory from new location ****
+import com.example.mindikot.ui.viewmodel.GameViewModel
+import com.example.mindikot.ui.viewmodel.factory.GameViewModelFactory
 
 
 @Composable
 fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
-    // Get Application Context once
+    // Get Application Context once for the factory
     val applicationContext = LocalContext.current.applicationContext
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
+    // Use the factory from the correct location
+    val factory = GameViewModelFactory(applicationContext) // Create factory instance
 
     NavHost(navController = navController, startDestination = "lobby", modifier = modifier) {
         composable("lobby") {
-            // Provide the factory here
+            // Create or get ViewModel scoped to this destination using the factory
+            // The type GameViewModel needs to be resolved from the new location
+            val gameViewModel: GameViewModel = viewModel(factory = factory)
+            // Pass the specific instance to the screen
             LobbyScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game_host") { // Screen where host waits
-            // Provide the factory here
+            // Create or get ViewModel scoped to this destination
+            val gameViewModel: GameViewModel = viewModel(factory = factory)
             GameHostScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("waiting_for_players") { // Screen where joiner waits
-            // Provide the factory here
+            // Create or get ViewModel scoped to this destination
+            val gameViewModel: GameViewModel = viewModel(factory = factory)
             WaitingForPlayersScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game") { // The actual game screen
-            // Provide the factory here
+            // Create or get ViewModel scoped to this destination
+            val gameViewModel: GameViewModel = viewModel(factory = factory)
             GameScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("result") {
-            // Provide the factory here
+            // Create or get ViewModel scoped to this destination
+            val gameViewModel: GameViewModel = viewModel(factory = factory)
             ResultScreen(navController = navController, viewModel = gameViewModel)
         }
     }

@@ -12,6 +12,7 @@ import com.example.mindikot.core.model.*
  * cards.
  * @property gameMode The selected mode for trump determination (e.g., CHOOSE_WHEN_EMPTY,
  * FIRST_CARD_HIDDEN).
+ * @property requiredPlayers The number of players required for the game 4 or 6.
  * @property currentLeaderIndex The index (in the `players` list) of the player who leads the
  * current or next trick.
  * @property trumpSuit The suit designated as trump for the current round. Null if trump has not
@@ -32,6 +33,7 @@ data class GameState(
         val players: List<Player>,
         val teams: List<Team>,
         val gameMode: GameMode,
+//        val requiredPlayers: Int, // <-- ADD THIS FIELD
         var currentLeaderIndex: Int = 0,
         var trumpSuit: Suit? = null,
         var trumpRevealed: Boolean = false,
