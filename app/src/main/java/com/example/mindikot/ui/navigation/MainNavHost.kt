@@ -21,33 +21,28 @@ fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier)
     val applicationContext = LocalContext.current.applicationContext
     // Use the factory from the correct location
     val factory = GameViewModelFactory(applicationContext) // Create factory instance
-
+    val gameViewModel: GameViewModel = viewModel(factory = factory)
     NavHost(navController = navController, startDestination = "lobby", modifier = modifier) {
         composable("lobby") {
             // Create or get ViewModel scoped to this destination using the factory
-            // The type GameViewModel needs to be resolved from the new location
-            val gameViewModel: GameViewModel = viewModel(factory = factory)
+
             // Pass the specific instance to the screen
             LobbyScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game_host") { // Screen where host waits
-            // Create or get ViewModel scoped to this destination
-            val gameViewModel: GameViewModel = viewModel(factory = factory)
+
             GameHostScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("waiting_for_players") { // Screen where joiner waits
-            // Create or get ViewModel scoped to this destination
-            val gameViewModel: GameViewModel = viewModel(factory = factory)
+
             WaitingForPlayersScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game") { // The actual game screen
-            // Create or get ViewModel scoped to this destination
-            val gameViewModel: GameViewModel = viewModel(factory = factory)
+
             GameScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("result") {
-            // Create or get ViewModel scoped to this destination
-            val gameViewModel: GameViewModel = viewModel(factory = factory)
+
             ResultScreen(navController = navController, viewModel = gameViewModel)
         }
     }
