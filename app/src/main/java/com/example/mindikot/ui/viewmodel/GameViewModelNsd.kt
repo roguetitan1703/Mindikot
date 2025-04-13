@@ -185,7 +185,7 @@ private fun GameViewModel.internalStartNsdDiscovery() {
                 resolvingServices[service.serviceName] = true // Mark as resolving
                 resolveNsdService(service) // Trigger resolution
             } else {
-                 $("Ignoring found service: Type mismatch (${service.serviceType}), self-discovery, already resolving, or already resolved.")
+                 log("Ignoring found service: Type mismatch (${service.serviceType}), self-discovery, already resolving, or already resolved.")
             }
         }
 
