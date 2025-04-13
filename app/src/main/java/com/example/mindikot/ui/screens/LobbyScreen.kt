@@ -146,7 +146,7 @@ fun LobbyScreen(
                         enabled =
                                 hasNetworkPermission ||
                                         Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-                ) { Text(role) }
+                ) { Text(if (role == "Host") "Host" else "Randi") }
             }
         }
 
@@ -257,6 +257,7 @@ fun JoinerSection(
                 items(discoveredGames, key = { it.serviceName }) { serviceInfo ->
                     Button(
                             onClick = {
+                                println(serviceInfo.host)
                                 if (serviceInfo.host == null || serviceInfo.port <= 0) {
                                     Toast.makeText(
                                                     context,
