@@ -4,6 +4,7 @@ import android.net.nsd.NsdServiceInfo
 import androidx.lifecycle.viewModelScope // Needed for viewModelScope.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mindikot.core.state.GameState
+import com.example.mindikot.core.engine.RoundEvaluator // Import RoundEvaluator
 import com.example.mindikot.ui.viewmodel.network.NetworkMessage
 import com.example.mindikot.ui.viewmodel.network.MessageType
 import com.example.mindikot.ui.viewmodel.utils.log
@@ -258,6 +259,34 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
              viewModelScope.launch { _showError.emit(reason) }
              disconnectFromServer() // Disconnect as we were kicked
          }
+
+        // *** ADD HANDLER FOR ROUND_RESULT ***
+        MessageType.ROUND_RESULT -> {
+            log("Client: Received ROUND_RESULT from host.")
+            try {
+                // Attempt to deserialize the RoundResult
+                val resultData = tryDeserializeJson(message.data, RoundEvaluator.RoundResult::class.java)
+
+                if (resultData != null) {
+                    log("Client: Successfully deserialized RoundResult. Emitting navigation.")
+                    // Emit the result to the local SharedFlow to trigger navigation in GameScreen
+                    // Use viewModelScope as tryEmit is not suspend, but emitting might trigger UI work best done in scope
+                    viewModelScope.launch {
+                        val emitted = _navigateToResultScreen.tryEmit(resultData)
+                        if (!emitted) {
+                            logError("Client: Failed to emit local navigation event for ROUND_RESULT.")
+                            _showError.emit("Failed to navigate to results.") // Notify user
+                        }
+                    }
+                } else {
+                    logError("Client: Failed to deserialize ROUND_RESULT data: ${message.data}")
+                    viewModelScope.launch { _showError.emit("Error receiving round results.") }
+                }
+            } catch (e: Exception) {
+                logError("Client: Error processing ROUND_RESULT message", e)
+                viewModelScope.launch { _showError.emit("Error processing round results.") }
+            }
+        }
         MessageType.ERROR -> {
             val errorMsg = message.data as? String ?: "Unknown server error"
             logError("Client: Received error from server: $errorMsg")
@@ -347,4 +376,22 @@ fun GameViewModel.disconnectFromServer() {
         _discoveredHosts.value = emptyList() // Clear discovered hosts list
         log("Client: Disconnected and state reset.")
      }
+}
+
+// Add this helper function if it's not already in this file's scope
+/** Helper to safely deserialize JSON, returning null on error */
+private fun <T> GameViewModel.tryDeserializeJson(data: Any?, targetClass: Class<T>): T? {
+    return try {
+        // Check if data is already the target type (possible with some Gson setups)
+        if (targetClass.isInstance(data)) {
+            @Suppress("UNCHECKED_CAST")
+            return data as T
+        }
+        // Otherwise, assume it's likely a Map from initial deserialization, convert back to JSON then to target class
+        val json = gson.toJson(data) // Convert Any? (likely Map) to JSON string
+        gson.fromJson(json, targetClass)
+    } catch (e: Exception) { // Catch broader exceptions during conversion/parsing
+        logError("GSON Deserialization failed for ${targetClass.simpleName}", e)
+        null
+    }
 }

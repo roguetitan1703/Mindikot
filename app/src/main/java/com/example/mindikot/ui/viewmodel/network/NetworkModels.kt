@@ -13,7 +13,8 @@ enum class MessageType {
     ERROR,               // Server -> Client: {data: String}
     DISCONNECTED,        // Server -> Client: Player ID disconnected {data: Int} - Informational
     LOBBY_FULL,          // Server -> Client: {data: String} - When connection is rejected
-    KICKED               // Server -> Client: {data: String} - When explicitly removed
+    KICKED,               // Server -> Client: {data: String} - When explicitly removed
+    ROUND_RESULT
     // Consider: ROUND_RESULT, GAME_OVER, KEEP_ALIVE, REQUEST_STATE (Client requesting full update)
 }
 

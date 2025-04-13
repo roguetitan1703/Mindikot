@@ -266,16 +266,26 @@ class GameViewModel(
 
             if (roundEnded) {
                 log("Host: Round Ended. Evaluating final state...")
-                 val result = RoundEvaluator.evaluateRound(newState) // Evaluate the final state
-                 log("Host: Round Result: Winner=${result.winningTeam?.id ?: "Draw"}, Kot=${result.isKot}")
+                val result = RoundEvaluator.evaluateRound(newState)
+                log("Host: Round Result: Winner=${result.winningTeam?.id ?: "Draw"}, Kot=${result.isKot}")
 
-                 // Broadcast the final round state *after* local state update
-                 broadcastGameState(newState)
+                // Broadcast the final game state first
+                broadcastGameState(newState)
 
-                 // Navigate after a short delay to allow UI update from final state broadcast
-                 delay(500) // Slightly increased delay
-                 log("Host: Emitting navigation to result screen.")
-                 _navigateToResultScreen.tryEmit(result) // Emit navigation event
+                // Allow a brief moment for clients to process the final state update visually
+                delay(300) // Adjust delay as needed
+
+                // *** FIX: Broadcast the result to trigger client navigation ***
+                log("Host: Broadcasting ROUND_RESULT to clients.")
+                val resultMessage = NetworkMessage(MessageType.ROUND_RESULT, result)
+                // Broadcast to all clients (modify broadcastGameState or add a new broadcast function if needed)
+                val clientIds = clientWriters.keys.toList()
+                clientIds.forEach { id -> sendMessageToClient(id, resultMessage) }
+
+                // *** Host still needs to navigate locally ***
+                log("Host: Emitting navigation locally.")
+                val emitted = _navigateToResultScreen.tryEmit(result) // Host navigates via its local flow
+                if (!emitted) logError("Host: Failed to emit local navigation event.")
 
             } else {
                  // Round not ended, broadcast the successfully updated state
