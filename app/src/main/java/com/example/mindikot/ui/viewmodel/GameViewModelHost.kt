@@ -483,7 +483,7 @@ fun GameViewModel.broadcastGameState(gameState: com.example.mindikot.core.state.
     val message = NetworkMessage(MessageType.GAME_STATE_UPDATE, gameState)
     val clientIds = clientWriters.keys.toList() // Get a stable list of IDs
      log("Broadcasting GameState to ${clientIds.size} clients (IDs: $clientIds)...") // Verbose
-
+    println(message)
     clientIds.forEach { id ->
         sendMessageToClient(id, message) // Use the dedicated send function
     }

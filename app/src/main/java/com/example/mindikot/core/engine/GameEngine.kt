@@ -293,7 +293,8 @@ object GameEngine {
             currentTrickPlays = emptyList(), // Clear trick plays for next trick
             currentLeaderIndex = winnerIndex, // Set next leader
             awaitingInputFromPlayerIndex = null, // Clear awaiting player after trick finish
-            requiredInputType = null
+            requiredInputType = null,
+            lastTrick = trickPlays
         )
     }
 

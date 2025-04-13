@@ -29,7 +29,8 @@ data class GameState(
     val currentTrickPlays: List<Pair<Player, Card>> = emptyList(), // Immutable List
     val awaitingInputFromPlayerIndex: Int? = null, // Now val
     val requiredInputType: InputType? = null,      // Now val
-    val tricksWon: Map<Int, Int> = emptyMap()      // Immutable Map
+    val tricksWon: Map<Int, Int> = emptyMap(),      // Immutable Map
+    val lastTrick: List<Pair<Player, Card>> = emptyList(), // Immutable List
 )
 
 /** Enum to represent the type of input currently required from a player. */

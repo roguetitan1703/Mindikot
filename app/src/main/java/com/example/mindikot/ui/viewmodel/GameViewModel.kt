@@ -270,6 +270,10 @@ class GameViewModel(
                 log("Host: Round Result: Winner=${result.winningTeam?.id ?: "Draw"}, Kot=${result.isKot}")
 
                 // Broadcast the final game state first
+                broadcastGameState(newState.copy(currentTrickPlays = newState.lastTrick))
+
+                delay(1000) // Adjust delay as needed
+
                 broadcastGameState(newState)
 
                 // Allow a brief moment for clients to process the final state update visually
@@ -289,7 +293,17 @@ class GameViewModel(
 
             } else {
                  // Round not ended, broadcast the successfully updated state
-                 broadcastGameState(newState)
+                val trickJustEnded = newState.currentTrickPlays.isEmpty() && currentState.currentTrickPlays.isNotEmpty()
+
+                if (trickJustEnded) {
+
+
+                    broadcastGameState(newState.copy(currentTrickPlays = newState.lastTrick))
+
+                    delay(1000) // Adjust delay as needed
+                }
+
+                broadcastGameState(newState)
                  log("Host: Broadcasted updated game state.")
             }
         }
