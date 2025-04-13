@@ -26,13 +26,13 @@ fun GameViewModel.connectToDiscoveredHost(serviceInfo: NsdServiceInfo, playerNam
     val port = serviceInfo.port
 
     if (hostAddress != null && port > 0) {
-        log("Client: Attempting connection to selected host: \${serviceInfo.serviceName} (\$hostAddress:\$port)")
+        log("Client: Attempting connection to selected host: ${serviceInfo.serviceName} ($hostAddress:$port)")
         // Call the core connect function
         connectToServer(hostAddress, port, playerName)
     } else {
-        logError("Client: Cannot connect, resolved service info is invalid (missing host/port): \$serviceInfo")
+        logError("Client: Cannot connect, resolved service info is invalid (missing host/port): $serviceInfo")
         // Use viewModelScope from the receiver (GameViewModel)
-        viewModelScope.launch { _showError.emit("Failed to get connection details for '\${serviceInfo.serviceName}'. Please refresh.") }
+        viewModelScope.launch { _showError.emit("Failed to get connection details for '${serviceInfo.serviceName}'. Please refresh.") }
     }
 }
 
@@ -43,7 +43,7 @@ fun GameViewModel.connectToServer(hostAddress: String, port: Int, playerName: St
         log("Client: Already connected or is host. Aborting connect.")
         return
     }
-    log("Client: Attempting connection to \$hostAddress:\$port...")
+    log("Client: Attempting connection to $hostAddress:$port...")
     // Ensure previous connection is fully cleaned up before starting new one
     disconnectFromServer() // Call disconnect first
 
@@ -60,7 +60,7 @@ fun GameViewModel.connectToServer(hostAddress: String, port: Int, playerName: St
             clientWriter = PrintWriter(clientSocket!!.getOutputStream(), true)
             clientReader = BufferedReader(InputStreamReader(clientSocket!!.getInputStream()))
             isConnectedToServer = true // Set flag only after successful connection and streams setup
-            log("Client: Connected successfully to \$hostAddress:\$port.")
+            log("Client: Connected successfully to $hostAddress:$port.")
 
             // Start listener coroutine *after* streams are set up
             listenToServer()
@@ -69,10 +69,10 @@ fun GameViewModel.connectToServer(hostAddress: String, port: Int, playerName: St
             sendMessageToServer(NetworkMessage(MessageType.PLAYER_NAME, playerName))
 
         } catch (e: Exception) {
-            logError("Client: Connection to \$hostAddress:\$port failed", e)
+            logError("Client: Connection to $hostAddress:$port failed", e)
             isConnectedToServer = false // Ensure flag is false on failure
             withContext(Dispatchers.Main) {
-                _showError.emit("Connection failed: \${e.message}")
+                _showError.emit("Connection failed: ${e.message}")
             }
             // Ensure cleanup happens even if initial connection fails
              withContext(Dispatchers.Main.immediate) {
@@ -97,11 +97,11 @@ private fun GameViewModel.listenToServer() {
                     break // Exit loop if server closes connection
                 }
 
-                // log("Client: Received from Server: \$messageJson") // Can be verbose
+                // log("Client: Received from Server: $messageJson") // Can be verbose
                  try {
                      // Basic validation
                      if (!messageJson.startsWith("{") || !messageJson.endsWith("}")) {
-                         logError("Client: Invalid JSON format received from Server: \$messageJson")
+                         logError("Client: Invalid JSON format received from Server: $messageJson")
                          continue // Skip this message
                      }
                     val message = gson.fromJson(messageJson, NetworkMessage::class.java)
@@ -110,7 +110,7 @@ private fun GameViewModel.listenToServer() {
                         handleServerMessage(message)
                     }
                  } catch (e: JsonSyntaxException) {
-                     logError("Client: JSON Parse Error from Server: \${e.message} for JSON: \$messageJson")
+                     logError("Client: JSON Parse Error from Server: ${e.message} for JSON: $messageJson")
                  } catch (e: Exception) {
                     logError("Client: Error handling server message", e)
                 }
@@ -118,7 +118,7 @@ private fun GameViewModel.listenToServer() {
         } catch (e: SocketException) {
             // Handle common socket errors gracefully (e.g., connection reset, closed)
             if (isActive) { // Don't log error if we intentionally disconnected
-                 logError("Client: SocketException in listener (likely disconnection): \${e.message}")
+                 logError("Client: SocketException in listener (likely disconnection): ${e.message}")
             }
         } catch (e: Exception) {
             // Catch other potential exceptions during readLine
@@ -153,7 +153,7 @@ private fun GameViewModel.listenToServer() {
 
 /** CLIENT: Handles messages received from the server (Runs on Main Thread) */
 private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
-    // log("Client: Handling message: \${message.type}") // Can be verbose
+    // log("Client: Handling message: ${message.type}") // Can be verbose
     when (message.type) {
         MessageType.ASSIGN_ID -> {
             // Server sends assigned ID. Gson might parse numbers as Double.
@@ -161,16 +161,16 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
             if (id != -1) {
                 if (localPlayerId == -1) { // Assign only if not already assigned
                     setLocalPlayerIdInternal(id) // Use internal setter
-                    log("Client: Assigned Player ID: \$localPlayerId")
+                    log("Client: Assigned Player ID: $localPlayerId")
                 } else if (localPlayerId != id) {
                     // This shouldn't happen if logic is correct, but handle defensively
-                    logError("Client: Received conflicting Player ID assignment! Current: \$localPlayerId, Received: \$id. Disconnecting.")
+                    logError("Client: Received conflicting Player ID assignment! Current: $localPlayerId, Received: $id. Disconnecting.")
                     viewModelScope.launch { _showError.emit("Network error: ID conflict.") }
                     disconnectFromServer()
                 }
                 // else: Received same ID again, ignore.
             } else {
-                logError("Client: Received invalid ASSIGN_ID data: \${message.data}")
+                logError("Client: Received invalid ASSIGN_ID data: ${message.data}")
                  // Consider disconnecting if ID assignment fails
                  viewModelScope.launch { _showError.emit("Network error: Invalid ID from host.") }
                  disconnectFromServer()
@@ -196,7 +196,7 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
 
                  // Check if our player ID exists in the new state if we expect it
                  if (localPlayerId != -1 && updatedState.players.none { it.id == localPlayerId } && updatedState.players.isNotEmpty()) {
-                     logError("Client: Received GameState update, but local player ID \$localPlayerId is missing! Players: \${updatedState.players.map{it.id}}")
+                     logError("Client: Received GameState update, but local player ID $localPlayerId is missing! Players: ${updatedState.players.map{it.id}}")
                      // Don't disconnect immediately, maybe host removed player intentionally? Wait for KICKED msg?
                      // Or handle based on KICKED message below. If no KICKED, this might mean error.
                      // Let's emit an error for now.
@@ -214,7 +214,7 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
                      it.name != "Waiting..." && it.name != "[Disconnected]" && !it.name.contains("[LEFT]")
                  }
                 _connectedPlayersCount.value = validPlayerCount
-                // log("Client: GameState updated. Players: \$validPlayerCount/\${updatedState.players.size}. Awaiting: \${updatedState.awaitingInputFromPlayerIndex}. MyID: \$localPlayerId") // Verbose
+                // log("Client: GameState updated. Players: $validPlayerCount/${updatedState.players.size}. Awaiting: ${updatedState.awaitingInputFromPlayerIndex}. MyID: $localPlayerId") // Verbose
 
                 // Determine if the game has started based on receiving a hand
                 val myHand = updatedState.players.find { it.id == localPlayerId }?.hand
@@ -233,10 +233,10 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
              // Informational message that *another* player left
              val disconnectedPlayerId = (message.data as? Double)?.toInt() ?: -1
              if (disconnectedPlayerId != -1 && disconnectedPlayerId != localPlayerId) {
-                 val playerName = _state.value.players.find { it.id == disconnectedPlayerId }?.name ?: "Player \$disconnectedPlayerId"
-                 log("Client: Received notice that \$playerName disconnected.")
+                 val playerName = _state.value.players.find { it.id == disconnectedPlayerId }?.name ?: "Player $disconnectedPlayerId"
+                 log("Client: Received notice that $playerName disconnected.")
                  // The GAME_STATE_UPDATE should reflect the change in the player list eventually.
-                 viewModelScope.launch { _showError.emit("\$playerName has left the game.") }
+                 viewModelScope.launch { _showError.emit("$playerName has left the game.") }
              }
          }
          MessageType.LOBBY_FULL -> {
@@ -247,18 +247,18 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
          }
          MessageType.KICKED -> {
              val reason = message.data as? String ?: "Removed from game by host."
-             logError("Client: Received KICKED message. Reason: \$reason")
+             logError("Client: Received KICKED message. Reason: $reason")
              viewModelScope.launch { _showError.emit(reason) }
              disconnectFromServer() // Disconnect as we were kicked
          }
         MessageType.ERROR -> {
             val errorMsg = message.data as? String ?: "Unknown server error"
-            logError("Client: Received error from server: \$errorMsg")
-            viewModelScope.launch { _showError.emit("Server Error: \$errorMsg") }
+            logError("Client: Received error from server: $errorMsg")
+            viewModelScope.launch { _showError.emit("Server Error: $errorMsg") }
             // Decide if the error is critical enough to warrant disconnection
             // if (errorMsg.contains("critical error")) { disconnectFromServer() }
         }
-        else -> log("Client: Received unhandled message type: \${message.type}")
+        else -> log("Client: Received unhandled message type: ${message.type}")
     }
 }
 
@@ -277,12 +277,12 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
             synchronized(clientWriter!!) { // clientWriter assumed non-null due to initial check
                 clientWriter?.println(messageJson)
                 if (clientWriter?.checkError() == true) {
-                    throw Exception("PrintWriter error after sending \${message.type}")
+                    throw Exception("PrintWriter error after sending ${message.type}")
                 }
             }
-            // log("Client: Sent message type: \${message.type}") // Optional success log
+            // log("Client: Sent message type: ${message.type}") // Optional success log
         } catch (e: Exception) {
-            logError("Client: Error sending message (\${message.type})", e)
+            logError("Client: Error sending message (${message.type})", e)
             // If sending fails, assume connection issue and disconnect
             withContext(Dispatchers.Main) {
                  if (isConnectedToServer) { // Avoid showing error if already disconnecting

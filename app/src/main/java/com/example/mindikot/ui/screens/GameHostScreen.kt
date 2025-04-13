@@ -83,7 +83,7 @@ fun GameHostScreen(
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         // Use connectedCount and requiredPlayerCount correctly
-        Text("Waiting for players... (\$connectedCount/\$requiredPlayerCount)")
+        Text("Waiting for players... ($connectedCount/$requiredPlayerCount)")
 
         // Display players from the GameState
         LazyColumn(

@@ -11,6 +11,6 @@ class GameViewModelFactory(private val context: Context) : ViewModelProvider.Fac
             @Suppress("UNCHECKED_CAST")
             return GameViewModel(context.applicationContext) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class: \${modelClass.name}")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

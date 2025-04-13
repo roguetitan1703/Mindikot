@@ -39,7 +39,7 @@ import com.example.mindikot.ui.viewmodel.GameViewModel
 import com.example.mindikot.ui.viewmodel.factory.GameViewModelFactory
 import com.example.mindikot.ui.viewmodel.utils.log // Optional import for logging
 import android.net.nsd.NsdServiceInfo // Keep NSD import
-import com.example.mindikot.ui.viewmodel.utils.logError // Import logError
+import com.example.mindikot.ui.viewmodel.utils. // Import 
 import com.example.mindikot.ui.viewmodel.stopServerAndDiscovery // From GameViewModelHost.kt
 import com.example.mindikot.ui.viewmodel.stopNsdDiscovery     // From GameViewModelNsd.kt
 import com.example.mindikot.ui.viewmodel.disconnectFromServer // From GameViewModelClient.kt
@@ -212,7 +212,7 @@ fun LobbyScreen(
                             }
                         } else {
                              // Should not happen if requiredPermission is null and hasPermission is true
-                            viewModel.logError("LobbyScreen: Inconsistent permission state.")
+                            viewModel.("LobbyScreen: Inconsistent permission state.")
                         }
                     },
                     enabled = playerName.isNotBlank(), // Enable only if name entered

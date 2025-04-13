@@ -45,7 +45,7 @@ fun GameViewModel.registerNsdService(portToRegister: Int): Boolean {
             // Use internal setter or make property internal/public
              setNsdServiceNameRegisteredInternal(nsdServiceInfo.serviceName)
 
-            log("NSD Service registered: \${nsdServiceInfo.serviceName} on port \${nsdServiceInfo.port}")
+            log("NSD Service registered: ${nsdServiceInfo.serviceName} on port ${nsdServiceInfo.port}")
              // Update host IP state just in case it wasn't ready before
              // This should likely be handled where the server starts, not here
              // viewModelScope.launch(Dispatchers.Main) {
@@ -54,16 +54,16 @@ fun GameViewModel.registerNsdService(portToRegister: Int): Boolean {
         }
 
         override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-            logError("NSD registration failed for \${serviceInfo.serviceName}: Error \$errorCode")
+            logError("NSD registration failed for ${serviceInfo.serviceName}: Error $errorCode")
             setNsdServiceNameRegisteredInternal(null) // Clear name on failure
              // Notify UI about the failure
-             viewModelScope.launch { _showError.emit("Failed to advertise game (NSD Error \$errorCode)") }
+             viewModelScope.launch { _showError.emit("Failed to advertise game (NSD Error $errorCode)") }
             // Consider stopping the server if NSD fails critically? Or allow manual IP connect?
             // stopServerAndDiscovery()
         }
 
         override fun onServiceUnregistered(arg0: NsdServiceInfo) {
-            log("NSD Service unregistered: \${arg0.serviceName}")
+            log("NSD Service unregistered: ${arg0.serviceName}")
             // Clear the stored name if it matches the one being unregistered
             if (arg0.serviceName == nsdServiceNameRegistered) {
                 setNsdServiceNameRegisteredInternal(null)
@@ -74,7 +74,7 @@ fun GameViewModel.registerNsdService(portToRegister: Int): Boolean {
 
         override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
             // This means the service might still be lingering on the network
-            logError("NSD unregistration failed for \${serviceInfo.serviceName}: Error \$errorCode")
+            logError("NSD unregistration failed for ${serviceInfo.serviceName}: Error $errorCode")
             // Consider retrying unregistration later?
         }
     }
@@ -86,7 +86,7 @@ fun GameViewModel.registerNsdService(portToRegister: Int): Boolean {
     val hostNamePart = _state.value.players.find { it.id == 0 }?.name?.let {
          if (it != "Waiting..." && it.isNotBlank()) "_(${it.take(8)})" else ""
      } ?: ""
-    val uniqueName = "\${baseName}\${hostNamePart}_\${(1000..9999).random()}" // Simple uniqueness factor
+    val uniqueName = "${baseName}${hostNamePart}_${(1000..9999).random()}" // Simple uniqueness factor
 
     val serviceInfo = NsdServiceInfo().apply {
         serviceName = uniqueName
@@ -97,7 +97,7 @@ fun GameViewModel.registerNsdService(portToRegister: Int): Boolean {
         // setAttribute("mode", _state.value.gameMode.name)
     }
 
-    log("Attempting to register NSD service: \$uniqueName on port \$portToRegister")
+    log("Attempting to register NSD service: $uniqueName on port $portToRegister")
     try {
         // Use the stored listener
         nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener!!)
@@ -116,12 +116,12 @@ fun GameViewModel.unregisterNsdService() {
         val listenerToUnregister = registrationListener // Capture current listener
         registrationListener = null // Nullify immediately to prevent race conditions if called again quickly
 
-        log("Unregistering NSD service: \$nsdServiceNameRegistered")
+        log("Unregistering NSD service: $nsdServiceNameRegistered")
         try {
             nsdManager?.unregisterService(listenerToUnregister)
             // Name cleared in the listener's onServiceUnregistered callback
         } catch (e: IllegalArgumentException) {
-             log("Error unregistering NSD service (already unregistered?): \${e.message}")
+             log("Error unregistering NSD service (already unregistered?): ${e.message}")
         } catch (e: Exception) {
             logError("Exception during NSD service unregistration", e)
             // If unregistration fails, the listener might still be technically active
@@ -171,26 +171,26 @@ private fun GameViewModel.internalStartNsdDiscovery() {
 
      // Create the listener
     val listener = object : NsdManager.DiscoveryListener {
-        override fun onDiscoveryStarted(regType: String) { log("NSD discovery started for type: \$regType") }
+        override fun onDiscoveryStarted(regType: String) { log("NSD discovery started for type: $regType") }
 
         override fun onServiceFound(service: NsdServiceInfo) {
-            // log("NSD service found raw: Name=\${service.serviceName}, Type=\${service.serviceType}, Host=\${service.host}, Port=\${service.port}") // Verbose
+            // log("NSD service found raw: Name=${service.serviceName}, Type=${service.serviceType}, Host=${service.host}, Port=${service.port}") // Verbose
             // Filter for correct type, avoid self-discovery (if host name known), and check if already resolving
             if (service.serviceType == SERVICE_TYPE &&
                 service.serviceName != nsdServiceNameRegistered && // Avoid self if name is known (mainly for testing)
                 !resolvingServices.containsKey(service.serviceName) && // Check if already resolving
                  !_discoveredHosts.value.any { it.serviceName == service.serviceName } // Check if already discovered and resolved
             ) {
-                log("Attempting to resolve service: \${service.serviceName}")
+                log("Attempting to resolve service: ${service.serviceName}")
                 resolvingServices[service.serviceName] = true // Mark as resolving
                 resolveNsdService(service) // Trigger resolution
             } else {
-                 // log("Ignoring found service: Type mismatch (\${service.serviceType}), self-discovery, already resolving, or already resolved.")
+                 // log("Ignoring found service: Type mismatch (${service.serviceType}), self-discovery, already resolving, or already resolved.")
             }
         }
 
         override fun onServiceLost(service: NsdServiceInfo) {
-            log("NSD service lost: \${service.serviceName}")
+            log("NSD service lost: ${service.serviceName}")
             // Update UI on Main thread
             viewModelScope.launch(Dispatchers.Main) {
                 _discoveredHosts.update { list ->
@@ -200,23 +200,23 @@ private fun GameViewModel.internalStartNsdDiscovery() {
             resolvingServices.remove(service.serviceName) // Remove from resolving tracker
         }
 
-        override fun onDiscoveryStopped(serviceType: String) { log("NSD discovery stopped for type: \$serviceType") }
+        override fun onDiscoveryStopped(serviceType: String) { log("NSD discovery stopped for type: $serviceType") }
 
         override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-            logError("NSD discovery start failed: Error code \$errorCode")
-            viewModelScope.launch { _showError.emit("Failed to search for games (NSD Error \$errorCode)") }
+            logError("NSD discovery start failed: Error code $errorCode")
+            viewModelScope.launch { _showError.emit("Failed to search for games (NSD Error $errorCode)") }
             discoveryListener = null // Clear listener if start fails
         }
 
         override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-            logError("NSD discovery stop failed: Error code \$errorCode")
+            logError("NSD discovery stop failed: Error code $errorCode")
             // Listener might still be attached? Try nullifying anyway.
              discoveryListener = null
         }
     }
     discoveryListener = listener // Store the listener
 
-    log("Client: Starting NSD discovery for type: \$SERVICE_TYPE")
+    log("Client: Starting NSD discovery for type: $SERVICE_TYPE")
     try {
         nsdManager?.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener!!)
     } catch (e: Exception) {
@@ -236,12 +236,12 @@ private fun GameViewModel.resolveNsdService(serviceInfo: NsdServiceInfo) {
     }
 
     val serviceName = serviceInfo.serviceName // Capture name for logging in callbacks
-    log("Resolving NSD service details for: \$serviceName")
+    log("Resolving NSD service details for: $serviceName")
 
     // Use a try-catch block for the listener creation itself if needed, though less common
     val listener = object : NsdManager.ResolveListener {
         override fun onResolveFailed(failedServiceInfo: NsdServiceInfo, errorCode: Int) {
-            logError("NSD resolve failed for \${failedServiceInfo.serviceName}: Error code \$errorCode")
+            logError("NSD resolve failed for ${failedServiceInfo.serviceName}: Error code $errorCode")
             resolvingServices.remove(failedServiceInfo.serviceName) // Remove from tracker on failure
             // Optionally remove from discoveredHosts if it was added prematurely? (Shouldn't be)
         }
@@ -250,7 +250,7 @@ private fun GameViewModel.resolveNsdService(serviceInfo: NsdServiceInfo) {
         @Suppress("DEPRECATION")
         override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
              if (resolvedServiceInfo.host == null || resolvedServiceInfo.port <= 0) {
-                  logError("NSD service resolved but host or port is invalid: \${resolvedServiceInfo.serviceName} - Host=\${resolvedServiceInfo.host}, Port=\${resolvedServiceInfo.port}")
+                  logError("NSD service resolved but host or port is invalid: ${resolvedServiceInfo.serviceName} - Host=${resolvedServiceInfo.host}, Port=${resolvedServiceInfo.port}")
                   resolvingServices.remove(resolvedServiceInfo.serviceName)
                   // Remove from discovered list if it somehow got added
                   viewModelScope.launch(Dispatchers.Main) {
@@ -259,7 +259,7 @@ private fun GameViewModel.resolveNsdService(serviceInfo: NsdServiceInfo) {
                   return // Don't add invalid service
              }
 
-            log("NSD service RESOLVED: \${resolvedServiceInfo.serviceName} at \${resolvedServiceInfo.host}:\${resolvedServiceInfo.port}")
+            log("NSD service RESOLVED: ${resolvedServiceInfo.serviceName} at ${resolvedServiceInfo.host}:${resolvedServiceInfo.port}")
             // Update the list on the Main thread
             viewModelScope.launch(Dispatchers.Main) {
                 _discoveredHosts.update { currentList ->
@@ -283,7 +283,7 @@ private fun GameViewModel.resolveNsdService(serviceInfo: NsdServiceInfo) {
         // Call resolveService using the created listener
         nsdManager?.resolveService(serviceInfo, listener)
     } catch (e: Exception) {
-        logError("Exception calling resolveService for \$serviceName", e)
+        logError("Exception calling resolveService for $serviceName", e)
         resolvingServices.remove(serviceName) // Remove from tracker on exception during the call
     }
 }
@@ -304,7 +304,7 @@ fun GameViewModel.stopNsdDiscovery() {
         nsdManager?.stopServiceDiscovery(listenerToStop)
     } catch (e: IllegalArgumentException) {
         // This often means it was already stopped or never started successfully
-        log("NSD Discovery likely already stopped: \${e.message}")
+        log("NSD Discovery likely already stopped: ${e.message}")
     } catch (e: Exception) {
         logError("Error stopping NSD discovery", e)
     } finally {

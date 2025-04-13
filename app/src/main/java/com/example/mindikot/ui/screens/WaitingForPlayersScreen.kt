@@ -39,9 +39,9 @@ fun WaitingForPlayersScreen(
 
     // Log state changes for debugging UI
     // LaunchedEffect(connectedCount, gameState.players, localPlayerId, requiredPlayers) {
-    //     println("[UI - WaitingScreen] connectedCount = \$connectedCount, required = \$requiredPlayers")
-    //     println("[UI - WaitingScreen] Player List State: \${gameState.players.map { p -> Pair(p.id, p.name) }}")
-    //     println("[UI - WaitingScreen] Local Player ID = \$localPlayerId")
+    //     println("[UI - WaitingScreen] connectedCount = $connectedCount, required = $requiredPlayers")
+    //     println("[UI - WaitingScreen] Player List State: ${gameState.players.map { p -> Pair(p.id, p.name) }}")
+    //     println("[UI - WaitingScreen] Local Player ID = $localPlayerId")
     // }
 
     // Joiner: Navigate to game screen when game starts
@@ -98,7 +98,7 @@ fun WaitingForPlayersScreen(
         // Use connectedCount and potentially requiredPlayers from GameState if available
         val displayRequired = gameState.players.size.takeIf { it > 0 } ?: requiredPlayers
         if (displayRequired > 0) { // Display only if requiredPlayers is initialized or derived
-            Text("Connected Players: \$connectedCount / \$displayRequired")
+            Text("Connected Players: $connectedCount / $displayRequired")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -122,7 +122,7 @@ fun WaitingForPlayersScreen(
                      val displayColor = if (player.name == "[Disconnected]" || player.name.contains("[LEFT]")) Color.Gray else LocalContentColor.current
 
                     Text(
-                        text = "- \$playerDisplayName\$suffix",
+                        text = "- $playerDisplayName$suffix",
                         style = MaterialTheme.typography.bodyLarge,
                         color = displayColor
                     )

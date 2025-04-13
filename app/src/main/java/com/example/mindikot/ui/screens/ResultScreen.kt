@@ -47,7 +47,7 @@ fun ResultScreen(
     ) {
         // Display Winner or Draw message
         Text(
-            text = roundResult.winningTeam?.let { "Team \${it.id} Wins!" } ?: "Round is a Draw!",
+            text = roundResult.winningTeam?.let { "Team ${it.id} Wins!" } ?: "Round is a Draw!",
             style = MaterialTheme.typography.headlineLarge
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -59,7 +59,7 @@ fun ResultScreen(
                 style = MaterialTheme.typography.bodyLarge
             )
             // TODO: Display actual scores if tracked in ViewModel/GameState
-            // Text("Team \${roundResult.winningTeam.id} score: X")
+            // Text("Team ${roundResult.winningTeam.id} score: X")
         } else {
             Text(text = "Scores remain unchanged.", style = MaterialTheme.typography.bodyLarge)
         }

@@ -137,7 +137,7 @@ class GameViewModel(
         host: Boolean = true,
         playersNeeded: Int = 4
     ) {
-        log("Initializing game settings. Host: \$host, Name: \$playerName, Mode: \$mode, Players: \$playersNeeded")
+        log("Initializing game settings. Host: $host, Name: $playerName, Mode: $mode, Players: $playersNeeded")
         isHost = host
         requiredPlayerCount = playersNeeded
         localPlayerId = if (host) 0 else -1 // Host is always 0, client waits for assignment
@@ -172,7 +172,7 @@ class GameViewModel(
         )
         _connectedPlayersCount.value = if (host) 1 else 0 // Host counts as 1 initially
         _gameStarted.value = false // Reset game started flag
-        log("Initial GameState created for setup. isHost=\$isHost, localPlayerId=\$localPlayerId")
+        log("Initial GameState created for setup. isHost=$isHost, localPlayerId=$localPlayerId")
 
          // If hosting, broadcast the initial lobby state immediately
          // Although no clients are connected yet, this sets the host's view
@@ -189,11 +189,11 @@ class GameViewModel(
     internal fun updatePlayerName(playerId: Int, name: String) {
         if (!isHost) return // Only host updates names authoritatively
          if (name.isBlank()) {
-             logError("Attempted to update Player \$playerId name to blank. Ignoring.")
+             logError("Attempted to update Player $playerId name to blank. Ignoring.")
              return
          }
 
-        log("Host: Updating Player \$playerId name to '\$name'")
+        log("Host: Updating Player $playerId name to '$name'")
         var nameChanged = false
         _state.update { currentState ->
             val playerIndex = currentState.players.indexOfFirst { it.id == playerId }
@@ -209,7 +209,7 @@ class GameViewModel(
                     currentState // No change needed
                 }
             } else {
-                 logError("Host: Cannot update name, Player \$playerId not found in current state.")
+                 logError("Host: Cannot update name, Player $playerId not found in current state.")
                  currentState // Player not found
             }
 
@@ -236,18 +236,18 @@ class GameViewModel(
 
             // --- Pre-condition Checks ---
             if (currentState.awaitingInputFromPlayerIndex != actingPlayerId) {
-                logError("Input received from Player \$actingPlayerId, but expected input from \${currentState.awaitingInputFromPlayerIndex}. Ignoring.")
+                logError("Input received from Player $actingPlayerId, but expected input from ${currentState.awaitingInputFromPlayerIndex}. Ignoring.")
                 // Optionally send an error message back to the player
                 sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Not your turn")) // Use host extension
                 return@launch
             }
              if (currentState.requiredInputType == null) {
-                 logError("Input received from Player \$actingPlayerId, but no input type was required. Ignoring.")
+                 logError("Input received from Player $actingPlayerId, but no input type was required. Ignoring.")
                  return@launch
              }
 
 
-            log("Host: Processing input from Player \$actingPlayerId (\$playerInput), required: \${currentState.requiredInputType}")
+            log("Host: Processing input from Player $actingPlayerId ($playerInput), required: ${currentState.requiredInputType}")
 
             // --- Process with GameEngine ---
             // GameEngine *does* modify the state directly. If it fails, we need to handle it.
@@ -261,13 +261,13 @@ class GameViewModel(
                  nextState = currentState // Explicitly assign potentially modified state
 
             } catch (e: IllegalStateException) {
-                 logError("Host: Invalid move or state error processing input for Player \$actingPlayerId: \${e.message}", e)
-                 sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Invalid Move: \${e.message}")) // Use host extension
+                 logError("Host: Invalid move or state error processing input for Player $actingPlayerId: ${e.message}", e)
+                 sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Invalid Move: ${e.message}")) // Use host extension
                  // State might be partially modified, try to reset the input request for the same player
                  nextState = GameEngine.requestInput(currentState, actingPlayerId) // Re-request input
                  errorOccurred = true
             } catch (e: Exception) {
-                 logError("Host: Unexpected error processing game input for Player \$actingPlayerId", e)
+                 logError("Host: Unexpected error processing game input for Player $actingPlayerId", e)
                  sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Internal server error during your turn.")) // Use host extension
                  // Decide how to recover - maybe reset trick or round? For now, re-request input.
                  nextState = GameEngine.requestInput(currentState, actingPlayerId) // Re-request input
@@ -302,7 +302,7 @@ class GameViewModel(
                 // Navigate host UI to result screen
                  // Use tryEmit for SharedFlow, check result
                  val emitted = _navigateToResultScreen.tryEmit(result)
-                 log("Host: Emitting navigation to result screen. Success: \$emitted")
+                 log("Host: Emitting navigation to result screen. Success: $emitted")
                  if (!emitted) {
                       logError("Host: Failed to emit navigation event to result screen.")
                  }
@@ -334,25 +334,25 @@ class GameViewModel(
               viewModelScope.launch { _showError.emit("Cannot play: Player ID not assigned.") }
               return
          }
-        log("UI Action: Card played: \$card by Local Player \$localId")
+        log("UI Action: Card played: $card by Local Player $localId")
         val currentState = _state.value
         val myTurn = currentState.awaitingInputFromPlayerIndex == localId
         val expectedInput = currentState.requiredInputType
 
         // --- Basic Input Validation ---
         if (!myTurn) {
-            logError("UI Action: Card played, but not player \$localId's turn.")
+            logError("UI Action: Card played, but not player $localId's turn.")
             viewModelScope.launch { _showError.emit("Not your turn!") }
             return
         }
         if (expectedInput != InputType.PLAY_CARD && expectedInput != InputType.CHOOSE_TRUMP_SUIT) {
-            logError("UI Action: Card played, but expected input was \$expectedInput.")
-            viewModelScope.launch { _showError.emit("Cannot play card now (Expected: \$expectedInput).") }
+            logError("UI Action: Card played, but expected input was $expectedInput.")
+            viewModelScope.launch { _showError.emit("Cannot play card now (Expected: $expectedInput).") }
             return
         }
         val localPlayer = currentState.players.find { it.id == localId }
         if (localPlayer == null || !localPlayer.hand.contains(card)) {
-             logError("UI Action: Card \$card not found in local player's hand: \${localPlayer?.hand}")
+             logError("UI Action: Card $card not found in local player's hand: ${localPlayer?.hand}")
             viewModelScope.launch { _showError.emit("Card not in hand!") }
             return
         }
@@ -367,7 +367,7 @@ class GameViewModel(
             trumpRevealed = currentState.trumpRevealed
         )
         if (!validMoves.contains(card)) {
-            logError("UI Action: Invalid card \$card played based on client-side check. Valid: \$validMoves")
+            logError("UI Action: Invalid card $card played based on client-side check. Valid: $validMoves")
             viewModelScope.launch { _showError.emit("Invalid move (Rule violation).") }
             return
         }
@@ -390,22 +390,22 @@ class GameViewModel(
               viewModelScope.launch { _showError.emit("Cannot act: Player ID not assigned.") }
               return
          }
-        log("UI Action: Reveal/Pass decision: \$decision by Local Player \$localId")
+        log("UI Action: Reveal/Pass decision: $decision by Local Player $localId")
         val currentState = _state.value
 
         // --- Basic Input Validation ---
         if (currentState.awaitingInputFromPlayerIndex != localId) {
-            logError("UI Action: Reveal/Pass action, but not player \$localId's turn.")
+            logError("UI Action: Reveal/Pass action, but not player $localId's turn.")
             viewModelScope.launch { _showError.emit("Not your turn!") }
             return
         }
         if (currentState.requiredInputType != InputType.REVEAL_OR_PASS) {
-            logError("UI Action: Reveal/Pass action, but expected input was \${currentState.requiredInputType}.")
-            viewModelScope.launch { _showError.emit("Cannot Reveal or Pass now (Expected: \${currentState.requiredInputType}).") }
+            logError("UI Action: Reveal/Pass action, but expected input was ${currentState.requiredInputType}.")
+            viewModelScope.launch { _showError.emit("Cannot Reveal or Pass now (Expected: ${currentState.requiredInputType}).") }
             return
         }
          if (currentState.gameMode != GameMode.FIRST_CARD_HIDDEN) {
-              logError("UI Action: Reveal/Pass action, but game mode is \${currentState.gameMode}.")
+              logError("UI Action: Reveal/Pass action, but game mode is ${currentState.gameMode}.")
              viewModelScope.launch { _showError.emit("Reveal/Pass is only available in FIRST_CARD_HIDDEN mode.") }
              return
          }
