@@ -40,7 +40,6 @@ class GameViewModel(
 
     // --- Game/Network Setup ---
     var isHost: Boolean = false
-        private set
     var requiredPlayerCount: Int = 4
         private set
     var localPlayerId: Int = -1 // -1 indicates not assigned yet

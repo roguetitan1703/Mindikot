@@ -399,14 +399,18 @@ fun GameViewModel.prepareAndBroadcastInitialState() {
         }
 
         // Deck generation now relies on requiredPlayerCount from ViewModel
-        val deck = DeckGenerator.generateDeck(requiredPlayerCount)
+        var deck = DeckGenerator.generateDeck(requiredPlayerCount)
         var hiddenCard: com.example.mindikot.core.model.Card? = null
 
         // Set hidden card for Mode B
         if (_state.value.gameMode == GameMode.FIRST_CARD_HIDDEN) {
             if (deck.isNotEmpty()) {
-                hiddenCard = deck.removeAt(0) // Take the first card after shuffle
-                log("Hidden card set (Mode B): ${hiddenCard.suit}")
+                // --- FIX: Immutable deck modification ---
+                hiddenCard = deck.first() // Get the first card
+                deck = deck.drop(1)       // Create NEW list without the first card
+                // --- End Fix ---
+                // --- FIX: Null safety ---
+                log("Hidden card set (Mode B): ${hiddenCard!!.suit}") // Use !!. assertion
             } else {
                 logError("Cannot set hidden card: Deck is empty!")
                 _showError.emit("Error: Deck empty during setup.")
