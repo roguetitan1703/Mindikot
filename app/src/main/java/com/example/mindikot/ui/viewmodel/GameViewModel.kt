@@ -280,7 +280,7 @@ class GameViewModel(
             // create a NEW copy here before updating the StateFlow.
             val newState = stateAfterEngineProcessing.copy()
             _state.value = newState // Assign the *new* copied instance to the StateFlow
-
+            log("${_state.value}")
             log("Host: State updated locally. Awaiting: ${_state.value.awaitingInputFromPlayerIndex}") // Log after local update
 
             // --- Check for Round End ---

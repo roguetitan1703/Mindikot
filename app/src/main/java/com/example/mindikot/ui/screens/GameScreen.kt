@@ -1,5 +1,6 @@
 package com.example.mindikot.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -47,6 +48,7 @@ fun GameScreen(
     val gameStarted by viewModel.gameStarted.collectAsState()
     val isHost = viewModel.isHost
 
+    Log.d("GameViewModel", "New game state: $gameState")
     LaunchedEffect(gameStarted) {
         if (!gameStarted && !isHost) {
             navController.navigate("lobby")
