@@ -215,7 +215,7 @@ fun LobbyScreen(
                         containerColor = if (selectedRole == role) MaterialTheme.colorScheme.primary
                                          else MaterialTheme.colorScheme.secondaryContainer
                     )
-                ) { Text(if(role == "Joiner") "Randi" else "Host") } // Using "Randi" for Joiner button
+                ) { Text(if(role == "Joiner") "Randi" else "Baap") } // Using "Randi" for Joiner button
             }
         }
 
@@ -304,10 +304,10 @@ fun HostSection(navController: NavController, viewModel: GameViewModel, hostPlay
             Divider()
 
             // Player Count Selection
-            ConfigOptionRow(label = "Number of Players:") {
+            ConfigOptionRow(label = "Number of Randis:") {
                 listOf(2,4, 6).forEach { count ->
                     ConfigButton(
-                        text = "$count Players",
+                        text = "$count Randis",
                         isSelected = numberOfPlayers == count,
                         onClick = { numberOfPlayers = count }
                     )
@@ -345,7 +345,7 @@ fun HostSection(navController: NavController, viewModel: GameViewModel, hostPlay
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp)
-            ) { Text("Create Game & Wait for Players") }
+            ) { Text("Create Badies & Wait for Randis") }
         }
     }
 }

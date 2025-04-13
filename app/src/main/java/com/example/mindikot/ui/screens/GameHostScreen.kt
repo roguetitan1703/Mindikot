@@ -91,7 +91,7 @@ fun GameHostScreen(
         // Display config only if state is initialized
         if (requiredPlayerCount > 0 && gameState.players.isNotEmpty()) { // Check players list too
             Text("Mode: ${gameState.gameMode.name}")
-            Text("Players Required: $requiredPlayerCount")
+            Text("Randis Required: $requiredPlayerCount")
             if(hostIp != null) {
                 Text("Your IP: $hostIp", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             } else {
@@ -103,7 +103,7 @@ fun GameHostScreen(
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         // Use connectedCount and requiredPlayerCount correctly
-        Text("Waiting for players... ($connectedCount/$requiredPlayerCount)")
+        Text("Waiting for Randis... ($connectedCount/$requiredPlayerCount)")
 
         // Display players from the GameState
         LazyColumn(
@@ -164,7 +164,7 @@ fun GameHostScreen(
 
         if (connectedCount < requiredPlayerCount) {
             Text(
-                text = "Game will start automatically when all players join.",
+                text = "Game will start automatically when all Randis join.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
