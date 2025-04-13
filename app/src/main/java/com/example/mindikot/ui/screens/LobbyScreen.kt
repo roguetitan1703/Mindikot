@@ -456,7 +456,7 @@ fun JoinerSection(
                                      viewModel.startNsdDiscovery() // Trigger refresh automatically
                                 } else {
                                     isConnecting = true // Set connecting flag
-                                    Toast.makeText(context, "Connecting to \${serviceInfo.serviceName}...", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Connecting to ${serviceInfo.serviceName}...", Toast.LENGTH_SHORT).show()
                                     // Call VM connect method using client extension
                                     viewModel.connectToDiscoveredHost(serviceInfo, joinerPlayerName)
                                     // Navigation handled by LaunchedEffect on isConnectedToServer
@@ -469,7 +469,7 @@ fun JoinerSection(
                         ) {
                             @Suppress("DEPRECATION") // Suppress for serviceInfo.host if needed
                             val hostIpDisplay = serviceInfo.host?.hostAddress ?: "resolving..."
-                            Text("\${serviceInfo.serviceName} (\$hostIpDisplay)")
+                            Text("${serviceInfo.serviceName} ($hostIpDisplay)")
                         }
                     }
                 }

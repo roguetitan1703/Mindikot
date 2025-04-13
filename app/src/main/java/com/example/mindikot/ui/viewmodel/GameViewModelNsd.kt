@@ -176,7 +176,7 @@ private fun GameViewModel.internalStartNsdDiscovery() {
         override fun onServiceFound(service: NsdServiceInfo) {
              log("NSD service found raw: Name=${service.serviceName}, Type=${service.serviceType}, Host=${service.host}, Port=${service.port}") // Verbose
             // Filter for correct type, avoid self-discovery (if host name known), and check if already resolving
-            if (service.serviceType == SERVICE_TYPE &&
+            if (
 //                service.serviceName != nsdServiceNameRegistered && // Avoid self if name is known (mainly for testing)
                 !resolvingServices.containsKey(service.serviceName) && // Check if already resolving
                  !_discoveredHosts.value.any { it.serviceName == service.serviceName } // Check if already discovered and resolved

@@ -95,7 +95,7 @@ fun GameHostScreen(
         ) {
             // Ensure players list is not empty before showing items
             if (gameState.players.isNotEmpty()) {
-                items(gameState.players, key = { "player_\${it.id}" }) { player -> // Use player ID for key
+                items(gameState.players, key = { "player_${it.id}" }) { player -> // Use player ID for key
                     val isMe = player.id == viewModel.localPlayerId // Host is ID 0
                     val isConnected = player.name != "Waiting..." && player.name != "[Disconnected]" && !player.name.contains("[LEFT]")
                     val cardColor = when {
@@ -117,7 +117,7 @@ fun GameHostScreen(
                     ) {
                         Text(
                             // Display player name and status
-                            text = "\${player.name}" + if (isMe) " (Host - You)" else "",
+                            text = player.name + if (isMe) " (Host - You)" else "",
                             modifier = Modifier.padding(16.dp),
                             style = MaterialTheme.typography.bodyLarge,
                             color = textColor
