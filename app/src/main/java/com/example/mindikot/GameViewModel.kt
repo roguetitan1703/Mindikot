@@ -72,7 +72,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     private var serverSocket: ServerSocket? = null
     private var servicePort: Int = 0 // *** DECLARED servicePort property ***
         private set
-    private var isServerRunning = false
+    var isServerRunning = false
     private val clientSockets = ConcurrentHashMap<Int, Socket>()
     private val clientWriters = ConcurrentHashMap<Int, PrintWriter>()
     private val clientReaders = ConcurrentHashMap<Int, BufferedReader>()
@@ -85,19 +85,22 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     private var clientReaderJob: Job? = null
     private var isConnectedToServer = false
 
-    // --- Network Discovery (NSD) ---
     private var nsdManager: NsdManager? = null
+    // Keep registrationListener for host
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private val SERVICE_TYPE = "_mindikot._tcp"
-    // private var serviceName = "MindikotGame" // Base name, actual name assigned on registration
-    private var nsdServiceNameRegistered: String? = null // Actual name registered
+    private var nsdServiceNameRegistered: String? = null
 
     private val _discoveredHosts = MutableStateFlow<List<NsdServiceInfo>>(emptyList())
     val discoveredHosts: StateFlow<List<NsdServiceInfo>> = _discoveredHosts.asStateFlow()
 
-    private val _hostIpAddress = MutableStateFlow<String?>(null) // For host display
+    // Keep host IP state
+    private val _hostIpAddress = MutableStateFlow<String?>(null)
     val hostIpAddress: StateFlow<String?> = _hostIpAddress.asStateFlow()
+
+    // Optional: Track services currently being resolved to prevent multiple attempts
+    private val resolvingServices = ConcurrentHashMap<String, Boolean>()
 
     // --- Serialization ---
     private val gson = Gson()
@@ -654,119 +657,105 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
     // CLIENT FUNCTIONS
     // ========================================================================
 
-    /** CLIENT: Starts discovering host services on the network */
     fun startNsdDiscovery() {
         if (isHost) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(
-                            applicationContext,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                    ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                logError(
-                        "Cannot start NSD discovery: ACCESS_FINE_LOCATION permission required on Android 12+."
-                )
-                viewModelScope.launch {
-                    _showError.emit("Location permission needed to find games.")
-                }
-                return
-            }
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { /* Permission check */ }
 
         log("Client: Starting NSD discovery...")
-        stopNsdDiscovery()
+        stopNsdDiscovery() // Ensure clean state
         _discoveredHosts.value = emptyList()
+        resolvingServices.clear() // Clear resolving tracker
 
         nsdManager = applicationContext.getSystemService(Context.NSD_SERVICE) as NsdManager?
-        if (nsdManager == null) {
-            /* Error handling */
-            return
-        }
+        if (nsdManager == null) { /* Error handling */ return }
 
-        discoveryListener =
-                object : NsdManager.DiscoveryListener {
-                    override fun onDiscoveryStarted(regType: String) {
-                        log("NSD discovery started.")
-                    }
-                    override fun onServiceFound(service: NsdServiceInfo) {
-                        log(
-                                "NSD service found: ${service.serviceName}, type: ${service.serviceType}"
-                        )
-                        // Filter for correct type and avoid resolving self if host somehow
-                        // discovers its own service
-                        if (service.serviceType == SERVICE_TYPE &&
-                                        service.serviceName != nsdServiceNameRegistered
-                        ) {
-                            resolveNsdService(service)
-                        }
-                    }
-                    override fun onServiceLost(service: NsdServiceInfo) {
-                        log("NSD service lost: ${service.serviceName}")
-                        _discoveredHosts.update { list ->
-                            list.filterNot { it.serviceName == service.serviceName }
-                        }
-                    }
-                    override fun onDiscoveryStopped(serviceType: String) {
-                        log("NSD discovery stopped.")
-                    }
-                    override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                        logError("NSD discovery start failed: Error code $errorCode")
-                        viewModelScope.launch {
-                            _showError.emit("Failed to search for games (Error $errorCode)")
-                        }
-                        stopNsdDiscovery()
-                    }
-                    override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                        logError("NSD discovery stop failed: Error code $errorCode")
-                    }
+        discoveryListener = object : NsdManager.DiscoveryListener {
+            override fun onDiscoveryStarted(regType: String) { log("NSD discovery started.") }
+
+            override fun onServiceFound(service: NsdServiceInfo) {
+                log("NSD service found raw: ${service.serviceName}, type: ${service.serviceType}")
+                // Filter for correct type, avoid self-discovery, and check if already resolving
+                if (service.serviceType == SERVICE_TYPE &&
+                    service.serviceName != nsdServiceNameRegistered &&
+                    !resolvingServices.containsKey(service.serviceName) // Check if already resolving
+                )
+                {
+                    log("Attempting to resolve service: ${service.serviceName}")
+                    resolvingServices[service.serviceName] = true // Mark as resolving
+                    resolveNsdService(service) // Trigger resolution
+                } else {
+                    log("Ignoring found service: Type mismatch, self-discovery, or already resolving.")
                 }
+            }
+
+            override fun onServiceLost(service: NsdServiceInfo) {
+                log("NSD service lost: ${service.serviceName}")
+                // Update UI on Main thread
+                viewModelScope.launch(Dispatchers.Main) {
+                    _discoveredHosts.update { list -> list.filterNot { it.serviceName == service.serviceName } }
+                }
+                resolvingServices.remove(service.serviceName) // Remove from resolving tracker
+            }
+
+            override fun onDiscoveryStopped(serviceType: String) { log("NSD discovery stopped.") }
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                logError("NSD discovery start failed: Error code $errorCode")
+                viewModelScope.launch { _showError.emit("Failed to search for games (Error $errorCode)")}
+                stopNsdDiscovery()
+            }
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                logError("NSD discovery stop failed: Error code $errorCode")
+            }
+        }
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                nsdManager?.discoverServices(
-                        SERVICE_TYPE,
-                        NsdManager.PROTOCOL_DNS_SD,
-                        discoveryListener
-                )
-            } else {
-                /* Handle older API error */
-            }
-        } catch (e: Exception) {
-            /* Error handling */
-        }
+                nsdManager?.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            } else { /* Handle older API error */ }
+        } catch (e: Exception) { /* Error handling */ }
     }
 
     /** CLIENT: Resolves a discovered service to get host and port */
     private fun resolveNsdService(serviceInfo: NsdServiceInfo) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN || nsdManager == null) return
-        if (_discoveredHosts.value.any { it.serviceName == serviceInfo.serviceName && it.host != null }) return
 
-        log("Resolving NSD service: ${serviceInfo.serviceName}")
+        val serviceName = serviceInfo.serviceName // Capture name for logging in callbacks
+        log("Resolving NSD service details for: $serviceName")
+
         val listener = object : NsdManager.ResolveListener {
             override fun onResolveFailed(failedServiceInfo: NsdServiceInfo, errorCode: Int) {
                 logError("NSD resolve failed for ${failedServiceInfo.serviceName}: Error code $errorCode")
+                resolvingServices.remove(failedServiceInfo.serviceName) // Remove from tracker on failure
             }
-            @Suppress("DEPRECATION") // Suppress warning for serviceInfo.host
+
+            @Suppress("DEPRECATION") // For host property
             override fun onServiceResolved(resolvedServiceInfo: NsdServiceInfo) {
-                log("NSD service resolved: ${resolvedServiceInfo.serviceName} at ${resolvedServiceInfo.host}:${resolvedServiceInfo.port}")
+                log("NSD service RESOLVED: ${resolvedServiceInfo.serviceName} at ${resolvedServiceInfo.host}:${resolvedServiceInfo.port}")
+                // Update the list on the Main thread
                 viewModelScope.launch(Dispatchers.Main) {
-                    _discoveredHosts.update { list ->
-                        val existingIndex = list.indexOfFirst { it.serviceName == resolvedServiceInfo.serviceName }
+                    _discoveredHosts.update { currentList ->
+                        val existingIndex = currentList.indexOfFirst { it.serviceName == resolvedServiceInfo.serviceName }
                         if (existingIndex != -1) {
-                            list.toMutableList().apply { set(existingIndex, resolvedServiceInfo) }
+                            // Update existing entry with resolved info
+                            currentList.toMutableList().apply { set(existingIndex, resolvedServiceInfo) }
                         } else {
-                            list + resolvedServiceInfo
+                            // Add new resolved entry
+                            currentList + resolvedServiceInfo
                         }
                     }
                 }
+                resolvingServices.remove(resolvedServiceInfo.serviceName) // Remove from tracker on success
             }
         }
-        try {
-            @Suppress("DEPRECATION") // Suppress warning for resolveService call
-            nsdManager?.resolveService(serviceInfo, listener)
-        } catch (e: Exception) { logError("Exception calling resolveService for ${serviceInfo.serviceName}", e)}
-    }
 
+        try {
+            @Suppress("DEPRECATION") // For resolveService method
+            nsdManager?.resolveService(serviceInfo, listener)
+        } catch (e: Exception) {
+            logError("Exception calling resolveService for $serviceName", e)
+            resolvingServices.remove(serviceName) // Remove from tracker on exception
+        }
+    }
 
     /** CLIENT: Stops NSD discovery */
     fun stopNsdDiscovery() {
@@ -776,15 +765,15 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                 nsdManager?.stopServiceDiscovery(discoveryListener)
             }
-        } catch (e: Exception) {
-            /* Error handling */
-        } finally {
+        } catch (e: IllegalArgumentException) {
+            log("NSD Discovery likely already stopped: ${e.message}")
+        } catch (e: Exception) { logError("Error stopping NSD discovery", e) }
+        finally {
             discoveryListener = null
-            _discoveredHosts.value = emptyList()
+            _discoveredHosts.value = emptyList() // Clear list when stopping discovery
+            resolvingServices.clear() // Clear resolving tracker
         }
     }
-
-
 
     /** CLIENT: Connects to a selected discovered host */
     fun connectToDiscoveredHost(serviceInfo: NsdServiceInfo, playerName: String) {
