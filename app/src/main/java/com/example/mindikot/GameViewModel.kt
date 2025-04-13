@@ -675,7 +675,7 @@ class GameViewModel(private val applicationContext: Context) : ViewModel() {
             override fun onServiceFound(service: NsdServiceInfo) {
                 log("NSD service found raw: ${service.serviceName}, type: ${service.serviceType}")
                 // Filter for correct type, avoid self-discovery, and check if already resolving
-                if (service.serviceType == SERVICE_TYPE &&
+                if (
                     service.serviceName != nsdServiceNameRegistered &&
                     !resolvingServices.containsKey(service.serviceName) // Check if already resolving
                 )

@@ -18,31 +18,27 @@ import com.example.mindikot.ui.GameViewModelFactory
 fun MainNavHost(navController: NavHostController, modifier: Modifier = Modifier) {
     // Get Application Context once
     val applicationContext = LocalContext.current.applicationContext
+            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
 
     NavHost(navController = navController, startDestination = "lobby", modifier = modifier) {
         composable("lobby") {
             // Provide the factory here
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
             LobbyScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game_host") { // Screen where host waits
             // Provide the factory here
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
             GameHostScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("waiting_for_players") { // Screen where joiner waits
             // Provide the factory here
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
             WaitingForPlayersScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("game") { // The actual game screen
             // Provide the factory here
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
             GameScreen(navController = navController, viewModel = gameViewModel)
         }
         composable("result") {
             // Provide the factory here
-            val gameViewModel: GameViewModel = viewModel(factory = GameViewModelFactory(applicationContext))
             ResultScreen(navController = navController, viewModel = gameViewModel)
         }
     }
