@@ -29,6 +29,7 @@ fun GameHostScreen(
 ) {
     val gameState by viewModel.state.collectAsState()
     // Use the dedicated count StateFlow from ViewModel
+    println(viewModel.isHost)
     val connectedCount by viewModel.connectedPlayersCount.collectAsState()
     // Get the definitive required count from ViewModel
     val requiredPlayerCount = viewModel.requiredPlayerCount // Access directly

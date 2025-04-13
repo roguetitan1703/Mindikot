@@ -55,7 +55,7 @@ class GameViewModel(
 
     // --- Game/Network Setup ---
     var isHost: Boolean = false
-        private set // Only ViewModel internals can set this
+         // Only ViewModel internals can set this
     var requiredPlayerCount: Int = 4
         private set
     var localPlayerId: Int = -1 // -1 indicates not assigned yet

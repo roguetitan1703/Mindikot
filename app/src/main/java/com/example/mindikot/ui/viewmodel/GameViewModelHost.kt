@@ -1,6 +1,7 @@
 package com.example.mindikot.ui.viewmodel
 
 import androidx.lifecycle.viewModelScope // Needed for viewModelScope.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mindikot.core.engine.DeckGenerator
 import com.example.mindikot.core.engine.GameEngine
 import com.example.mindikot.core.model.GameMode
@@ -169,11 +170,11 @@ fun GameViewModel.startServerAndDiscovery(port: Int = 0) { // Port 0 lets OS pic
             log("Server listener coroutine finishing. Cleaning up...")
             // Ensure server and NSD are stopped if the loop exits unexpectedly
             // Call stopServerAndDiscovery on the Main thread to ensure proper cleanup
-            withContext(Dispatchers.Main) {
-                if (isServerRunning) { // Only stop if it was meant to be running
-                   stopServerAndDiscovery() // Cleanup NSD, server socket, clients
-                }
-            }
+//            withContext(Dispatchers.Main) {
+//                if (isServerRunning) { // Only stop if it was meant to be running
+//                   stopServerAndDiscovery() // Cleanup NSD, server socket, clients
+//                }
+//            }
         }
     }
 }

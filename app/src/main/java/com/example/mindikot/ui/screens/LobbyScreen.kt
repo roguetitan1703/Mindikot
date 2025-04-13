@@ -177,6 +177,7 @@ fun LobbyScreen(
                                  selectedRole = role
                                  // Clean up previous network state when switching roles
                                  if (role == "Host") {
+                                     viewModel.isHost = true
                                      viewModel.stopNsdDiscovery()
                                      viewModel.disconnectFromServer()
                                      // Initialize settings for host (will be done again in HostSection, but good practice)
@@ -184,6 +185,8 @@ fun LobbyScreen(
                                  } else { // Switching to Joiner
                                      viewModel.stopServerAndDiscovery()
                                      // No need to init settings for joiner here
+                                     viewModel.isHost = false
+
                                  }
                             }
                         } else if (requiredPermission != null) { // Permission NOT granted and is required
