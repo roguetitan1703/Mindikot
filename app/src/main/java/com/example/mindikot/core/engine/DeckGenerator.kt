@@ -5,14 +5,14 @@ import com.example.mindikot.core.model.*
 object DeckGenerator {
     /**
      * Generates a standard Mindikot deck. For 6 players, Twos are excluded.
-     * @param numPlayers The number of players (4 or 6).
-     * @return A shuffled list of cards for the game.
+     * @param numPlayers The number of players (2, 4 or 6).
+     * @return An immutable, shuffled list of cards for the game.
      */
-    fun generateDeck(numPlayers: Int): MutableList<Card> {
+    fun generateDeck(numPlayers: Int): List<Card> { // Changed return type
         require(numPlayers == 4 || numPlayers == 6 || numPlayers == 2) { "Mindikot supports 2, 4 or 6 players only." }
         val includeTwos = (numPlayers == 4)
 
-        val deck = mutableListOf<Card>()
+        val deck = mutableListOf<Card>() // Still use mutable locally for building
         val allSuits = Suit.values()
         val allRanks = Rank.values()
 
@@ -26,6 +26,7 @@ object DeckGenerator {
             }
         }
         // Shuffle the generated deck thoroughly before returning
-        return deck.shuffled().toMutableList()
+        // shuffled() already returns a new List<Card>
+        return deck.shuffled() // Return immutable List
     }
 }

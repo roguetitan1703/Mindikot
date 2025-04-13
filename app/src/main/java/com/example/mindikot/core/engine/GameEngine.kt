@@ -5,30 +5,21 @@ import com.example.mindikot.core.state.GameState
 import com.example.mindikot.core.state.InputType
 
 /**
- * Manages the core game flow, including playing tricks and handling state transitions. NOTE: This
- * implementation outlines the logic flow. A real implementation would need mechanisms (like
- * callbacks, suspend functions, or StateFlow) to handle asynchronous player input from the
- * UI/ViewModel layer. The points requiring input are marked.
+ * Manages the core game flow using immutable state transitions.
+ * Functions take a GameState and return a new GameState reflecting the changes.
  */
 object GameEngine {
 
     /**
      * Determines the set of cards a player can legally play on their turn.
-     *
-     * @param playerHand The list of cards currently in the player's hand.
-     * @param currentTrickPlays The list of (Player, Card) pairs already played in the current
-     * trick.
-     * @param trumpSuit The current trump suit (null if not set).
-     * @param trumpRevealed Whether trump has been revealed.
-     * @return A list of cards from the player's hand that are valid to play.
+     * (This function is already pure and needs no changes)
      */
     fun determineValidMoves(
-            playerHand: List<Card>,
-            currentTrickPlays: List<Pair<Player, Card>>,
-            trumpSuit: Suit?,
-            trumpRevealed: Boolean
+        playerHand: List<Card>,
+        currentTrickPlays: List<Pair<Player, Card>>,
+        trumpSuit: Suit?,
+        trumpRevealed: Boolean
     ): List<Card> {
-
         // If player is leading the trick (no cards played yet)
         if (currentTrickPlays.isEmpty()) {
             return playerHand // Can lead any card
@@ -45,247 +36,265 @@ object GameEngine {
 
         // --- Cannot follow suit ---
 
-        // Check if trump is revealed and active
-        if (trumpRevealed && trumpSuit != null) {
-            // Rule: If cannot follow suit and trump is set, play ANY card.
-            return playerHand
-        } else {
-            // Rule: If cannot follow suit and trump is NOT set, play ANY card.
-            // The decision to CHOOSE/REVEAL/PASS happens separately.
-            // Special case: Mode B Reveal requires trump play if possible AFTER reveal.
-            // This function determines playable cards BEFORE that decision point.
-            return playerHand
-        }
+        // Rule: If cannot follow suit, can play any card.
+        // Specific restrictions (like choosing trump or revealing) are handled by input type requirement.
+        return playerHand
     }
 
     // --- Interaction State Management Functions ---
 
     /**
-     * Prepares the game state to request input from the appropriate player. This should be called
-     * at the start of a trick or after a player has played.
+     * Calculates the game state required to request input from the appropriate player.
      *
-     * @param state The current GameState to modify.
+     * @param state The current GameState.
      * @param playerIndex The index of the player whose turn it is.
-     * @return The modified GameState with updated input requirements.
+     * @return A new GameState with updated input requirements.
      */
     fun requestInput(state: GameState, playerIndex: Int): GameState {
         val currentPlayer = state.players[playerIndex]
+        val requiredInputType: InputType?
 
         if (state.currentTrickPlays.isEmpty()) { // Leading the trick
-            state.requiredInputType = InputType.PLAY_CARD
+            requiredInputType = InputType.PLAY_CARD
         } else {
             val leadSuit = state.currentTrickPlays.first().second.suit
             val canFollowSuit = currentPlayer.hand.any { it.suit == leadSuit }
 
             if (canFollowSuit) {
-                state.requiredInputType = InputType.PLAY_CARD
+                requiredInputType = InputType.PLAY_CARD
             } else { // Cannot follow suit
                 if (state.trumpRevealed) {
-                    state.requiredInputType = InputType.PLAY_CARD // Play any card
+                    requiredInputType = InputType.PLAY_CARD // Play any card
                 } else { // Trump not revealed - need trump decision
-                    when (state.gameMode) {
-                        GameMode.CHOOSE_WHEN_EMPTY ->
-                                state.requiredInputType =
-                                        InputType.CHOOSE_TRUMP_SUIT // Player must play card to set
-                        // trump
-                        GameMode.FIRST_CARD_HIDDEN ->
-                                state.requiredInputType =
-                                        InputType.REVEAL_OR_PASS // Player chooses Reveal or Pass
+                    requiredInputType = when (state.gameMode) {
+                        GameMode.CHOOSE_WHEN_EMPTY -> InputType.CHOOSE_TRUMP_SUIT // Play card sets trump
+                        GameMode.FIRST_CARD_HIDDEN -> InputType.REVEAL_OR_PASS // Choose Reveal or Pass
                     }
                 }
             }
         }
-        state.awaitingInputFromPlayerIndex = playerIndex
         println(
-                "GameEngine: Requesting ${state.requiredInputType} from Player ${state.players[playerIndex].name}"
+            "GameEngine: Requesting $requiredInputType from Player ${state.players[playerIndex].name}"
         ) // Logging
-        return state
+        // Return new state with input requirements set
+        return state.copy(
+            awaitingInputFromPlayerIndex = playerIndex,
+            requiredInputType = requiredInputType
+        )
     }
 
     /**
      * Processes the input received from a player (card played or trump decision). Validates the
-     * input against the rules and current state. Advances the game state (plays card, sets trump,
-     * finishes trick/round).
+     * input against the rules and current state. Calculates the next game state (card played, trump set,
+     * trick/round finished).
      *
      * @param currentState The current state of the game.
      * @param playerInput The input received from the player (e.g., Card object, Decision enum).
      * @return An updated GameState. The state might indicate further input is needed from the next
      * player, or that the round/game ended.
+     * @throws IllegalStateException if the move is invalid according to game rules or input is unexpected.
      */
     fun processPlayerInput(
-            currentState: GameState,
-            playerInput:
-                    Any // Could be Card, Decision (Reveal/Pass), Suit (for potential future Mode A
-            // choice)
-            ): GameState {
+        currentState: GameState,
+        playerInput: Any // Card, Decision
+    ): GameState {
 
         val playerIndex =
-                currentState.awaitingInputFromPlayerIndex
-                        ?: run {
-                            println("Error: processPlayerInput called when no input was expected.")
-                            return currentState // Or throw error
-                        }
+            currentState.awaitingInputFromPlayerIndex
+                ?: throw IllegalStateException("processPlayerInput called when no input was expected.")
+
         val currentPlayer = currentState.players[playerIndex]
         val currentRequirement = currentState.requiredInputType
+            ?: throw IllegalStateException("processPlayerInput called when requiredInputType is null.")
+
 
         println(
-                "GameEngine: Processing input from Player ${currentPlayer.name}, expected: $currentRequirement, received: $playerInput"
+            "GameEngine: Processing input from Player ${currentPlayer.name}, expected: $currentRequirement, received: $playerInput"
         ) // Logging
+
+        var nextState = currentState // Start with current state, apply changes immutably
 
         // --- Validate and Process Input ---
         when (currentRequirement) {
             InputType.CHOOSE_TRUMP_SUIT -> {
-                // Mode A: Expecting a Card to be played which sets the trump
                 val playedCard = playerInput as? Card
-                if (playedCard == null || !currentPlayer.hand.contains(playedCard)) {
-                    println("Error: Invalid card provided for CHOOSE_TRUMP_SUIT.")
-                    return currentState // Re-request input
+                    ?: throw IllegalStateException("Invalid input type for CHOOSE_TRUMP_SUIT. Expected Card, got ${playerInput::class.simpleName}")
+                if (!currentPlayer.hand.contains(playedCard)) {
+                    throw IllegalStateException("Card $playedCard not in player ${currentPlayer.name}'s hand.")
                 }
                 // Validate it's a valid play (must be unable to follow suit)
                 val leadSuit = currentState.currentTrickPlays.firstOrNull()?.second?.suit
                 if (leadSuit != null && currentPlayer.hand.any { it.suit == leadSuit }) {
-                    println("Error: Player could follow suit, should not be choosing trump.")
-                    return currentState // State logic error or invalid input sequence
+                    throw IllegalStateException("Player ${currentPlayer.name} could follow suit $leadSuit, cannot choose trump now.")
                 }
 
-                TrumpHandler.setTrumpFromPlayedCard(currentState, playedCard)
-                playCard(currentState, currentPlayer, playedCard) // Play the card
+                // Set trump based on the played card
+                nextState = TrumpHandler.setTrumpFromPlayedCard(nextState, playedCard)
+                // Play the card (updates players, currentTrickPlays)
+                nextState = applyPlayCard(nextState, playerIndex, playedCard)
             }
             InputType.REVEAL_OR_PASS -> {
-                // Mode B: Expecting a Decision (Reveal or Pass)
                 when (playerInput as? Decision) {
                     Decision.REVEAL -> {
-                        TrumpHandler.revealHiddenTrump(currentState)
-                        // Now need player to play (Must play trump if possible)
-                        currentState.requiredInputType = InputType.PLAY_CARD
-                        currentState.awaitingInputFromPlayerIndex =
-                                playerIndex // Still this player's turn
-                        println(
-                                "GameEngine: Player revealed trump. Requesting card play (must play trump if possible)."
+                        nextState = TrumpHandler.revealHiddenTrump(nextState)
+                        // State now requires this player to PLAY_CARD (with reveal constraint)
+                        // The requestInput after this will determine validity based on revealed trump
+                        nextState = nextState.copy(
+                            requiredInputType = InputType.PLAY_CARD,
+                            awaitingInputFromPlayerIndex = playerIndex // Still this player's turn
                         )
-                        return currentState // Request card input with reveal constraint
+                        println(
+                            "GameEngine: Player revealed trump. Requesting card play (must play trump if possible)."
+                        )
+                        return nextState // Return state requesting card play, *before* clearing flags
                     }
                     Decision.PASS -> {
-                        TrumpHandler.handleTrumpPass(currentState)
-                        // Player plays ANY card
-                        currentState.requiredInputType = InputType.PLAY_CARD
-                        currentState.awaitingInputFromPlayerIndex =
-                                playerIndex // Still this player's turn
+                        nextState = TrumpHandler.handleTrumpPass(nextState)
+                        // State now requires this player to PLAY_CARD (any card)
+                        nextState = nextState.copy(
+                            requiredInputType = InputType.PLAY_CARD,
+                            awaitingInputFromPlayerIndex = playerIndex // Still this player's turn
+                        )
                         println("GameEngine: Player passed trump. Requesting any card play.")
-                        return currentState // Request card input (any card valid)
+                        return nextState // Return state requesting card play, *before* clearing flags
                     }
-                    else -> {
-                        println("Error: Invalid decision provided for REVEAL_OR_PASS.")
-                        return currentState // Re-request input
-                    }
+                    null -> throw IllegalStateException("Invalid input type for REVEAL_OR_PASS. Expected Decision, got ${playerInput::class.simpleName}")
                 }
             }
             InputType.PLAY_CARD -> {
                 val playedCard = playerInput as? Card
-                if (playedCard == null || !currentPlayer.hand.contains(playedCard)) {
-                    println("Error: Invalid card provided for PLAY_CARD.")
-                    return currentState // Re-request input
+                    ?: throw IllegalStateException("Invalid input type for PLAY_CARD. Expected Card, got ${playerInput::class.simpleName}")
+                if (!currentPlayer.hand.contains(playedCard)) {
+                    throw IllegalStateException("Card $playedCard not in player ${currentPlayer.name}'s hand: ${currentPlayer.hand}")
                 }
 
                 // --- Complex Validation for PLAY_CARD ---
-                val leadSuit = currentState.currentTrickPlays.firstOrNull()?.second?.suit
-                val canFollowSuit =
-                        if (leadSuit != null) currentPlayer.hand.any { it.suit == leadSuit }
-                        else false
+                 val validMoves = determineValidMoves(
+                     playerHand = currentPlayer.hand,
+                     currentTrickPlays = currentState.currentTrickPlays,
+                     trumpSuit = currentState.trumpSuit, // Use current state's trump for validation
+                     trumpRevealed = currentState.trumpRevealed // Use current state's reveal status
+                 )
 
-                // 1. Must follow suit if possible?
-                if (leadSuit != null && playedCard.suit != leadSuit && canFollowSuit) {
-                    println(
-                            "Error: Player must follow suit $leadSuit but played ${playedCard.suit}."
-                    )
-                    return currentState // Re-request input
-                }
+                 if (!validMoves.contains(playedCard)) {
+                     // Check specific constraint for Mode B after REVEAL
+                     val justRevealed = currentState.requiredInputType == InputType.PLAY_CARD &&
+                                       currentState.awaitingInputFromPlayerIndex == playerIndex &&
+                                       currentState.trumpRevealed && // Trump is now revealed
+                                       currentState.gameMode == GameMode.FIRST_CARD_HIDDEN
+                                       // We need a better way to know if REVEAL *just* happened.
+                                       // Let's assume if trump is revealed and mode is B, and we expect PLAY_CARD
+                                       // from the same player, they *might* have just revealed.
 
-                // 2. Mode B Post-Reveal Constraint: Must play trump if revealed and possible?
-                // Need a way to know if this PLAY_CARD followed a REVEAL action in the same turn
-                // cycle...
-                // This architecture makes tracking that tricky. A state machine or temporary flag
-                // might be needed.
-                // Assuming for now the UI/ViewModel layer handles this constraint check *before*
-                // sending.
+                     val mustPlayTrump = justRevealed && // Simplified condition
+                                       currentState.trumpSuit != null &&
+                                       currentPlayer.hand.any { it.suit == currentState.trumpSuit }
+
+                     if (mustPlayTrump && playedCard.suit != currentState.trumpSuit) {
+                         throw IllegalStateException("Invalid move after revealing. Must play trump ${currentState.trumpSuit} if possible. Played $playedCard. Hand: ${currentPlayer.hand}")
+                     } else if (!validMoves.contains(playedCard)) {
+                          // General invalid move (e.g., didn't follow suit when possible)
+                          throw IllegalStateException("Invalid move. Player ${currentPlayer.name} played $playedCard. Valid moves: $validMoves. Hand: ${currentPlayer.hand}")
+                     }
+                 }
 
                 // If validation passes:
-                playCard(currentState, currentPlayer, playedCard)
-            }
-            null -> {
-                println("Error: processPlayerInput called when requiredInputType is null.")
-                return currentState
+                nextState = applyPlayCard(nextState, playerIndex, playedCard)
             }
         }
 
         // --- Post-Play State Update ---
-        currentState.requiredInputType = null // Reset requirement after successful processing
-        currentState.awaitingInputFromPlayerIndex = null // Clear awaiting player
+        // Flags are cleared within applyPlayCard or applyFinishTrick returns state with cleared flags
 
         // Check if trick is complete
-        if (currentState.currentTrickPlays.size == currentState.players.size) {
-            finishTrick(
-                    currentState
-            ) // Determine winner, collect cards, update tricksWon, set next leader
+        if (nextState.currentTrickPlays.size == nextState.players.size) {
+            val stateAfterTrick = applyFinishTrick(nextState) // Determine winner, update state, set next leader
 
-            // Check if round ended (hands are empty)
-            if (currentState.players.first().hand.isEmpty()) {
+            // Check if round ended (hands are empty - check first player's hand)
+            if (stateAfterTrick.players.firstOrNull()?.hand?.isEmpty() == true) {
                 println("GameEngine: Round finished.")
-                // --- End of Round ---
-                // Caller (ViewModel) should check hand size and call RoundEvaluator
-                // and handle scoring/next round setup.
+                // End of Round: State is final for this round. Caller (ViewModel) handles evaluation.
+                return stateAfterTrick // Return final round state (input flags already cleared)
             } else {
-                // Start next trick by requesting input from the new leader
-                return requestInput(currentState, currentState.currentLeaderIndex)
+                // Start next trick: Request input from the new leader
+                return requestInput(stateAfterTrick, stateAfterTrick.currentLeaderIndex)
             }
         } else {
-            // Trick continues, request input from the next player
-            val nextPlayerIndex = (playerIndex + 1) % currentState.players.size
-            return requestInput(currentState, nextPlayerIndex)
+            // Trick continues: Request input from the next player
+            val nextPlayerIndex = (playerIndex + 1) % nextState.players.size
+            return requestInput(nextState, nextPlayerIndex)
+        }
+    }
+
+    /** Helper to calculate the state after a card is played */
+    private fun applyPlayCard(state: GameState, playerIndex: Int, card: Card): GameState {
+        val player = state.players[playerIndex]
+        println("GameEngine: Player ${player.name} played $card") // Logging
+
+        // 1. Create updated hand for the player
+        val updatedHand = player.hand - card // Returns new list without the card
+
+        // 2. Create updated player object
+        val updatedPlayer = player.copy(hand = updatedHand)
+
+        // 3. Create updated players list
+        val updatedPlayers = state.players.toMutableList().apply {
+            set(playerIndex, updatedPlayer)
+        }.toList() // Make immutable again
+
+        // 4. Create updated trick plays list
+        val updatedTrickPlays = state.currentTrickPlays + (updatedPlayer to card) // Add new pair (use updatedPlayer ref)
+
+        // 5. Return new state with updated player list, trick plays, and cleared input request
+        return state.copy(
+            players = updatedPlayers,
+            currentTrickPlays = updatedTrickPlays,
+            awaitingInputFromPlayerIndex = null, // Input processed
+            requiredInputType = null
+        )
+    }
+
+    /** Helper to calculate the state after a trick is finished */
+    private fun applyFinishTrick(state: GameState): GameState {
+        println("GameEngine: Trick finished. Plays: ${state.currentTrickPlays.map { it.second }}")
+        val trickPlays = state.currentTrickPlays // Already immutable List<Pair<Player, Card>>
+
+        // 1. Determine Winner (using player references from the trickPlays)
+        val winnerPlayerRef = TrickHandler.determineTrickWinner(trickPlays, state.trumpSuit)
+        // Find the corresponding player *object* in the main state list to get updated info if needed
+        val winnerPlayerState = state.players.first { it.id == winnerPlayerRef.id }
+        val winnerIndex = state.players.indexOf(winnerPlayerState) // Find index by object identity
+        val winningTeamId = winnerPlayerState.teamId
+        println("GameEngine: Trick winner: ${winnerPlayerState.name} (Index: $winnerIndex, Team: $winningTeamId)")
+
+        // 2. Update Winning Team's Collected Cards
+        val winningTeam = state.teams.first { it.id == winningTeamId }
+        val cardsToAdd = trickPlays.map { it.second } // Extract cards from the trick
+        val updatedCollectedCards = winningTeam.collectedCards + cardsToAdd // Create new list
+        val updatedWinningTeam = winningTeam.copy(collectedCards = updatedCollectedCards) // Create new team object
+
+        // 3. Create Updated Teams List
+        val updatedTeams = state.teams.map { team ->
+            if (team.id == winningTeamId) updatedWinningTeam else team // Replace winning team
         }
 
-        return currentState // Return the final state after processing
-    }
+        // 4. Update Tricks Won Map
+        val currentTrickCount = state.tricksWon.getOrDefault(winningTeamId, 0)
+        val updatedTricksWon = state.tricksWon + (winningTeamId to currentTrickCount + 1) // Creates new map
 
-    /** Helper to add card to trick plays and remove from hand */
-    private fun playCard(state: GameState, player: Player, card: Card) {
-        state.currentTrickPlays.add(player to card)
-        player.hand.remove(card)
-        println("GameEngine: Player ${player.name} played ${card}") // Logging
-    }
-
-    /** Called when a trick is complete to determine winner and collect cards. */
-    private fun finishTrick(state: GameState) {
-        println("GameEngine: Trick finished. Plays: ${state.currentTrickPlays.map { it.second }}")
-        val winnerPlayer =
-                TrickHandler.determineTrickWinner(state.currentTrickPlays, state.trumpSuit)
-        val winnerIndex = state.players.indexOf(winnerPlayer)
-        println("GameEngine: Trick winner: ${winnerPlayer.name}") // Logging
-
-        // Collect cards for the winning team
-        val winningTeam =
-                state.teams.first {
-                    it.id == winnerPlayer.teamId
-                } // Assuming player.teamId is correct
-        winningTeam.collectedCards.addAll(state.currentTrickPlays.map { it.second })
-        // println("Team ${winningTeam.id} collected cards. Total tens: ${winningTeam.countTens()}")
-        // // Logging
-
-        // --- Update trick count ---
-        val currentTrickCount = state.tricksWon.getOrDefault(winningTeam.id, 0)
-        state.tricksWon[winningTeam.id] = currentTrickCount + 1 // Increment trick count
         println(
-                "GameEngine: Team ${winningTeam.id} tricks won this round: ${state.tricksWon[winningTeam.id]}"
-        ) // Logging trick count
+            "GameEngine: Team $winningTeamId tricks won this round: ${updatedTricksWon[winningTeamId]}"
+        )
 
-        // Clear trick plays and set next leader
-        state.currentTrickPlays.clear()
-        state.currentLeaderIndex = winnerIndex
-
-        // Reset input requirement for the start of the next trick
-        // The requestInput function will be called next, setting the specific input type.
-        state.requiredInputType = null
-        state.awaitingInputFromPlayerIndex = null
+        // 5. Return new state with cleared trick, updated teams/tricksWon, new leader, and cleared input request
+        return state.copy(
+            teams = updatedTeams,
+            tricksWon = updatedTricksWon,
+            currentTrickPlays = emptyList(), // Clear trick plays for next trick
+            currentLeaderIndex = winnerIndex, // Set next leader
+            awaitingInputFromPlayerIndex = null, // Clear awaiting player after trick finish
+            requiredInputType = null
+        )
     }
 
     // Enum for Reveal/Pass decision

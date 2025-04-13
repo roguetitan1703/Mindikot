@@ -1,5 +1,6 @@
 package com.example.mindikot.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -24,6 +25,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.mindikot.core.engine.GameEngine
 import com.example.mindikot.core.model.Card
+import com.example.mindikot.core.state.GameState
 import com.example.mindikot.core.state.InputType
 import com.example.mindikot.ui.components.OtherPlayerDisplay
 import com.example.mindikot.ui.components.CardView
@@ -46,7 +48,10 @@ fun GameScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val gameStarted by viewModel.gameStarted.collectAsState()
     val isHost = viewModel.isHost
+    LaunchedEffect(gameState) {
+        Log.d("GameViewModel", "New game state: $gameState")
 
+    }
     LaunchedEffect(gameStarted) {
         if (!gameStarted && !isHost) {
             navController.navigate("lobby")
@@ -155,7 +160,7 @@ fun GameScreen(
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun GameStatusHeader(gameState: com.example.mindikot.core.state.GameState) {
+fun GameStatusHeader(gameState: GameState) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
