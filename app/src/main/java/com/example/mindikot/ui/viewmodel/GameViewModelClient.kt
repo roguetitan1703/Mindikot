@@ -265,8 +265,11 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
 
 /** CLIENT: Sends a message to the host server */
 fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
-    if (!isConnectedToServer || isHost || clientWriter == null) {
-        // log("Client: Cannot send message. Not connected, is host, or writer is null.") // Can be noisy
+    // Capture writer locally to prevent race condition with nullification during disconnect
+    val writer = clientWriter
+
+    if (!isConnectedToServer || isHost || writer == null) { // Check captured writer
+        // log("Client: Cannot send message. Not connected, is host, or writer is null.")
         return
     }
 
@@ -274,9 +277,9 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
         try {
             val messageJson = gson.toJson(message)
             // Synchronize on the writer to prevent potential race conditions if called rapidly
-            synchronized(clientWriter!!) { // clientWriter assumed non-null due to initial check
-                clientWriter?.println(messageJson)
-                if (clientWriter?.checkError() == true) {
+            synchronized(writer) { // Synchronize on the captured writer
+                writer.println(messageJson) // Use captured writer
+                if (writer.checkError() == true) {
                     throw Exception("PrintWriter error after sending ${message.type}")
                 }
             }
@@ -285,15 +288,14 @@ fun GameViewModel.sendMessageToServer(message: NetworkMessage) {
             logError("Client: Error sending message (${message.type})", e)
             // If sending fails, assume connection issue and disconnect
             withContext(Dispatchers.Main) {
-                 if (isConnectedToServer) { // Avoid showing error if already disconnecting
-                      _showError.emit("Connection error. Disconnecting.")
-                      disconnectFromServer()
-                 }
+                if (isConnectedToServer) { // Avoid showing error if already disconnecting
+                    _showError.emit("Connection error sending message. Disconnecting.")
+                    disconnectFromServer()
+                }
             }
         }
     }
 }
-
 
 /** CLIENT: Disconnects from the server and cleans up resources */
 fun GameViewModel.disconnectFromServer() {

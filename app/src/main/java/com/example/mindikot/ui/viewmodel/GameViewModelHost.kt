@@ -120,11 +120,20 @@ fun GameViewModel.startServerAndDiscovery(port: Int = 0) { // Port 0 lets OS pic
                         _connectedPlayersCount.value = clientSockets.size + 1 // Host + clients
                         log("Player ID $assignedPlayerId added. Connected: ${_connectedPlayersCount.value}/${requiredPlayerCount}")
 
+                        // **** REMOVE THIS BLOCK ****
                         // Check if lobby is now full after adding this player
-                        if (_connectedPlayersCount.value == requiredPlayerCount) {
-                            log("All players connected! Preparing initial game state...")
-                            prepareAndBroadcastInitialState()
-                        }
+                        // if (_connectedPlayersCount.value == requiredPlayerCount) {
+                        //     log("All players connected! Preparing initial game state...")
+                        //     // DO NOT CALL THIS HERE - Wait for Player Name message
+                        //     // prepareAndBroadcastInitialState()
+                        // }
+                        // ***************************
+
+                        // Instead, just broadcast the updated lobby state so the new
+                        // client sees the current list (including themselves as Waiting...)
+                        // Ensure player name update happens *before* this if possible, but
+                        // usually name comes *after* client gets ID. So broadcast current state.
+                        broadcastGameState(_state.value) // Broadcast updated lobby list
                     }
                 } catch (e: Exception) {
                     logError("Error during client setup (Player $assignedPlayerId)", e)
@@ -344,13 +353,27 @@ private fun GameViewModel.handleClientMessage(playerId: Int, message: NetworkMes
             }
         }
         MessageType.PLAYER_NAME -> {
-            // Ensure data is a non-blank string before updating
             val name = message.data as? String
             if (!name.isNullOrBlank()) {
+                val previousName = _state.value.players.find { it.id == playerId }?.name
                 updatePlayerName(playerId, name) // Update name and broadcast state
+
+                // **** ADD THIS CHECK ****
+                // Check if this was the last player joining and if we can now start
+                val currentState = _state.value // Get the state *after* name update
+                val allPlayersNamed = currentState.players.none {
+                    it.name == "Waiting..." || it.name == "[Disconnected]" || it.name.contains("[LEFT]")
+                }
+                if (previousName == "Waiting..." && // Only trigger if they were previously Waiting
+                    _connectedPlayersCount.value == requiredPlayerCount &&
+                    allPlayersNamed) {
+                    log("Last player ($name - ID $playerId) joined and named. Starting game.")
+                    prepareAndBroadcastInitialState() // NOW it's safe to start
+                }
+                // ***********************
+
             } else {
                 logError("Received invalid or blank PLAYER_NAME data from Player $playerId: ${message.data}")
-                // Optionally send an error message back
             }
         }
         // Handle other message types if needed (e.g., PING, REQUEST_STATE etc.)
