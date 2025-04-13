@@ -46,7 +46,10 @@ fun GameViewModel.connectToServer(hostAddress: String, port: Int, playerName: St
     }
     log("Client: Attempting connection to $hostAddress:$port...")
     // Ensure previous connection is fully cleaned up before starting new one
-    disconnectFromServer() // Call disconnect first
+    if (isConnectedToServer){
+
+        disconnectFromServer() // Call disconnect first
+    }
 
     viewModelScope.launch(Dispatchers.IO) {
         try {

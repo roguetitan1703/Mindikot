@@ -412,7 +412,6 @@ fun JoinerSection(
                 viewModel.startNsdDiscovery() // Restart discovery (stops previous first)
                 Toast.makeText(context, "Refreshing game list...", Toast.LENGTH_SHORT).show()
             },
-            enabled = !isConnecting // Disable refresh while connecting
         ) { Text("Refresh Game List") }
 
         Spacer(modifier = Modifier.height(8.dp))
