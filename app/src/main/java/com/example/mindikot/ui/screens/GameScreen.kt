@@ -51,7 +51,7 @@ fun GameScreen(
     LaunchedEffect(gameState) {
         Log.d("GameViewModel", "New game state: $gameState")
 
-    }
+    Log.d("GameViewModel", "New game state: $gameState")
     LaunchedEffect(gameStarted) {
         if (!gameStarted && !isHost) {
             navController.navigate("lobby")
