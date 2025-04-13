@@ -552,8 +552,7 @@ fun GameViewModel.removeClient(playerId: Int) {
         // 3. Update connected player count
         _connectedPlayersCount.value = clientSockets.size + 1 // +1 for host
         log("Player $playerId removed. Connected: ${_connectedPlayersCount.value}/${requiredPlayerCount}")
-            setGameStartedInternal(false)
-
+         setGameStartedInternal(false)
         // 4. Update Game State and potentially notify others
         val playerName = _state.value.players.find { it.id == playerId }?.name ?: "Player $playerId"
 
@@ -611,6 +610,8 @@ fun GameViewModel.removeClient(playerId: Int) {
             broadcastGameState(updatedLobbyState)
         }
      }
+    stopServerAndDiscovery()
+    
 }
 
 /** Helper to safely deserialize JSON, returning null on error */

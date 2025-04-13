@@ -2,6 +2,7 @@ package com.example.mindikot.ui.viewmodel
 
 import android.net.nsd.NsdServiceInfo
 import androidx.lifecycle.viewModelScope // Needed for viewModelScope.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mindikot.core.state.GameState
 import com.example.mindikot.ui.viewmodel.network.NetworkMessage
 import com.example.mindikot.ui.viewmodel.network.MessageType
