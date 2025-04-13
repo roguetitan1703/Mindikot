@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Modifier // Ensure this import is added
 import androidx.navigation.compose.rememberNavController
 import com.example.mindikot.ui.MainNavHost
+import com.example.mindikot.ui.components.GameFooter
 import com.example.mindikot.ui.theme.MindikotTheme
 
 class MainActivity : ComponentActivity() {
@@ -45,20 +46,17 @@ class MainActivity : ComponentActivity() {
                             colors = TopAppBarDefaults.mediumTopAppBarColors()
                         )
                     }
+                    ,
+                    bottomBar = {
+                        GameFooter(version = "v1.0.0") // 👈 Footer added here
+                    }
                 ) { paddingValues ->
                     // Main content is handled by MainNavHost, passing the navigation controller
                     MainNavHost(navController = navController, modifier = Modifier.padding(paddingValues))
+
                 }
+
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    MindikotTheme {
-        val navController = rememberNavController()
-        MainNavHost(navController = navController)
     }
 }
