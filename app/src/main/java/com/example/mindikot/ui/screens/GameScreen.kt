@@ -43,7 +43,17 @@ fun GameScreen(
     val gameState by viewModel.state.collectAsState()
     val localPlayerId = viewModel.localPlayerId // Access directly
     val snackbarHostState = remember { SnackbarHostState() }
+    val gameStarted by viewModel.gameStarted.collectAsState() // Assuming it's a Flow/StateFlow
+    val isHost = viewModel.isHost // Assuming it's a simple value, not LiveData/Flow
 
+    LaunchedEffect(gameStarted) {
+        if (!gameStarted && !isHost) {
+            navController.navigate("lobby")
+        }
+        else if  (!gameStarted && isHost) {
+            navController.navigate("waiting_for_players")
+        }
+    }
     // Find the local player object (handle null briefly during init)
     val localPlayer = remember(gameState.players, localPlayerId) {
         gameState.players.find { it.id == localPlayerId }

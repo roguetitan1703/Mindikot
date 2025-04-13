@@ -133,6 +133,8 @@ private fun GameViewModel.listenToServer() {
                 if (isConnectedToServer) {
                     log("Client: Listener ended, triggering disconnect cleanup.")
                     _showError.emit("Disconnected from host.") // Inform user
+                    setGameStartedInternal(false) // Use internal setter
+
                     disconnectFromServer()
                 } else {
                     log("Client: Listener ended, but already marked as disconnected.")
@@ -220,6 +222,7 @@ private fun GameViewModel.handleServerMessage(message: NetworkMessage) {
                 val myHand = updatedState.players.find { it.id == localPlayerId }?.hand
                 if (!_gameStarted.value && myHand?.isNotEmpty() == true) {
                     setGameStartedInternal(true) // Use internal setter
+
                     log("Client: Game Started (detected non-empty hand).")
                 }
 

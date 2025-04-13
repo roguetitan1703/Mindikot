@@ -65,7 +65,14 @@ fun LobbyScreen(
     // State for permission dialogs
     var showRationaleDialog by remember { mutableStateOf(false) }
     var showSettingsGuidance by remember { mutableStateOf(false) }
+    val gameStarted by viewModel.gameStarted.collectAsState() // Assuming it's a Flow/StateFlow
+    val isHost = viewModel.isHost // Assuming it's a simple value, not LiveData/Flow
 
+    LaunchedEffect(gameStarted, isHost) {
+        if (gameStarted && !isHost) {
+            navController.navigate("game")
+        }
+    }
     // --- Permission Handling ---
     // Define required permission based on Android version for NSD
     val requiredPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
