@@ -311,7 +311,7 @@ fun HostSection(navController: NavController, viewModel: GameViewModel, hostPlay
 
             // Player Count Selection
             ConfigOptionRow(label = "Number of Players:") {
-                listOf(4, 6).forEach { count ->
+                listOf(2,4, 6).forEach { count ->
                     ConfigButton(
                         text = "$count Players",
                         isSelected = numberOfPlayers == count,
