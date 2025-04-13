@@ -237,93 +237,77 @@ class GameViewModel(
             // --- Pre-condition Checks ---
             if (currentState.awaitingInputFromPlayerIndex != actingPlayerId) {
                 logError("Input received from Player $actingPlayerId, but expected input from ${currentState.awaitingInputFromPlayerIndex}. Ignoring.")
-                // Optionally send an error message back to the player
-                sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Not your turn")) // Use host extension
+                sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Not your turn"))
                 return@launch
             }
-             if (currentState.requiredInputType == null) {
-                 logError("Input received from Player $actingPlayerId, but no input type was required. Ignoring.")
-                 return@launch
-             }
-
+            if (currentState.requiredInputType == null) {
+                logError("Input received from Player $actingPlayerId, but no input type was required. Ignoring.")
+                return@launch
+            }
 
             log("Host: Processing input from Player $actingPlayerId ($playerInput), required: ${currentState.requiredInputType}")
 
             // --- Process with GameEngine ---
-            // GameEngine *does* modify the state directly. If it fails, we need to handle it.
-            var nextState = currentState // Assume current state initially
             var errorOccurred = false
             try {
-                 // Core game logic update - MUTATES currentState directly
-                 GameEngine.processPlayerInput(currentState, playerInput)
-                 // If GameEngine throws an exception (e.g., invalid move despite UI checks), catch it below.
-                 // If it returns (mutable state modified), `currentState` now holds the next state.
-                 nextState = currentState // Explicitly assign potentially modified state
+                // Core game logic update - MUTATES currentState directly
+                GameEngine.processPlayerInput(currentState, playerInput)
+                // If GameEngine throws an exception (e.g., invalid move), catch it below.
 
             } catch (e: IllegalStateException) {
-                 logError("Host: Invalid move or state error processing input for Player $actingPlayerId: ${e.message}", e)
-                 sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Invalid Move: ${e.message}")) // Use host extension
-                 // State might be partially modified, try to reset the input request for the same player
-                 nextState = GameEngine.requestInput(currentState, actingPlayerId) // Re-request input
-                 errorOccurred = true
+                logError("Host: Invalid move or state error processing input for Player $actingPlayerId: ${e.message}", e)
+                sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Invalid Move: ${e.message}"))
+                // State might be partially modified, try to reset the input request for the same player
+                // Ensure requestInput also results in a new state object if it mutates, or returns one.
+                // Assuming requestInput returns a new state or doesn't mutate negatively here.
+                _state.value = GameEngine.requestInput(currentState, actingPlayerId) // Assign potentially new state from requestInput
+                errorOccurred = true
+                // Broadcast the state requiring re-input
+                broadcastGameState(_state.value)
+                return@launch // Stop further processing after error
             } catch (e: Exception) {
-                 logError("Host: Unexpected error processing game input for Player $actingPlayerId", e)
-                 sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Internal server error during your turn.")) // Use host extension
-                 // Decide how to recover - maybe reset trick or round? For now, re-request input.
-                 nextState = GameEngine.requestInput(currentState, actingPlayerId) // Re-request input
-                 errorOccurred = true
+                logError("Host: Unexpected error processing game input for Player $actingPlayerId", e)
+                sendMessageToClient(actingPlayerId, NetworkMessage(MessageType.ERROR, "Internal server error during your turn."))
+                // Attempt to re-request input
+                _state.value = GameEngine.requestInput(currentState, actingPlayerId)
+                errorOccurred = true
+                // Broadcast the state requiring re-input
+                broadcastGameState(_state.value)
+                return@launch // Stop further processing after error
             }
 
             // --- Post-Processing State Update ---
-            _state.value = nextState // Update the central StateFlow with the result of processing
-
-             if (errorOccurred) {
-                 broadcastGameState(nextState) // Broadcast the state requiring re-input (Use host extension)
-                 return@launch // Stop further processing after error
-             }
-
+            // **** FIX: Create a NEW GameState object using copy() ****
+            // This ensures StateFlow detects a change even if GameEngine only mutated internal lists.
+            val newState = currentState.copy()
+            _state.value = newState // Assign the *new* copied instance to the StateFlow
 
             // --- Check for Round End ---
-            val roundEnded = nextState.players.firstOrNull()?.hand?.isEmpty() == true && nextState.currentTrickPlays.isEmpty()
+            // Use the newState for checks and broadcasting
+            val roundEnded = newState.players.firstOrNull()?.hand?.isEmpty() == true && newState.currentTrickPlays.isEmpty()
 
             if (roundEnded) {
                 log("Host: Round Ended. Evaluating...")
-                val result = RoundEvaluator.evaluateRound(nextState)
+                val result = RoundEvaluator.evaluateRound(newState) // Evaluate the final state
                 log("Host: Round Result: Winner=${result.winningTeam?.id ?: "Draw"}, Kot=${result.isKot}")
 
-                // TODO: Update overall game scores (needs score tracking properties)
+                // Broadcast the final state of the round *after* local state update
+                broadcastGameState(newState) // Broadcast the newState
 
-                // Broadcast the final state of the round *before* navigating
-                broadcastGameState(nextState) // Use host extension
+                delay(300) // Short delay
 
-                // Short delay to allow clients to receive final state
-                delay(300)
-
-                // Navigate host UI to result screen
-                 // Use tryEmit for SharedFlow, check result
-                 val emitted = _navigateToResultScreen.tryEmit(result)
-                 log("Host: Emitting navigation to result screen. Success: $emitted")
-                 if (!emitted) {
-                      logError("Host: Failed to emit navigation event to result screen.")
-                 }
-
-
-                // TODO: Handle "Play Again" logic. For now, ending the game session.
-                // Option A: Automatically start next round (deal again)
-                 // prepareAndBroadcastInitialState() // Needs reset logic
-
-                 // Option B: Wait for host input to start next round
-
-                 // Option C: End server session (simplest for now)
-                 // stopServerAndDiscovery() // This would kick everyone back to lobby
+                val emitted = _navigateToResultScreen.tryEmit(result)
+                log("Host: Emitting navigation to result screen. Success: $emitted")
+                if (!emitted) {
+                    logError("Host: Failed to emit navigation event to result screen.")
+                }
 
             } else {
-                // Round not ended, just broadcast the updated state after the turn
-                broadcastGameState(nextState) // Use host extension
+                // Round not ended, broadcast the updated state
+                broadcastGameState(newState) // Broadcast the newState
             }
         }
     }
-
 
     // ========================================================================    // UI ACTION HANDLERS (Called by the UI on the specific device)
     // ========================================================================
