@@ -278,8 +278,8 @@ class GameViewModel(
             // --- Post-Processing State Update ---
             // Regardless of whether GameEngine returned the mutated original or a new state,
             // create a NEW copy here before updating the StateFlow.
-//            val newState = stateAfterEngineProcessing.copy()
-//            _state.value = newState // Assign the *new* copied instance to the StateFlow
+            val newState = stateAfterEngineProcessing.copy()
+            _state.value = newState // Assign the *new* copied instance to the StateFlow
 
             log("Host: State updated locally. Awaiting: ${_state.value.awaitingInputFromPlayerIndex}") // Log after local update
 

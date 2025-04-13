@@ -41,6 +41,26 @@ fun GameHostScreen(
     //     println("[UI - GameHostScreen] Player List State: ${gameState.players.map { p -> Pair(p.id, p.name) }}")
     // }
 
+    // --- Automatic Cleanup Logic ---
+    DisposableEffect(Unit) { // Use Unit key if effect doesn't depend on changing inputs
+        onDispose {
+            // This code runs when GameHostScreen leaves the composition
+            // (e.g., user navigates back, app closes)
+            println("[UI - GameHostScreen] Disposing...")
+
+            // IMPORTANT: Only stop the server if the game HASN'T actually started.
+            // If the game started, we navigated to GameScreen, and cleanup
+            // should be handled by GameScreen ending or ViewModel.onCleared.
+            if (viewModel.isHost && !viewModel.gameStarted.value) {
+                println("[UI - GameHostScreen] Game not started, stopping server/discovery on dispose.")
+                viewModel.stopServerAndDiscovery() // Call the cleanup function
+            } else {
+                println("[UI - GameHostScreen] Dispose check: Game already started or not host. Cleanup deferred.")
+            }
+        }
+    }
+    // --- End Cleanup Logic ---
+
 
     // Navigate to game screen once the game starts
     LaunchedEffect(gameStarted) {
